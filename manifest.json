@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Tabr - Beautiful New Tab",
+  "version": "1.0.1",
+  "description": "用精美的高清照片替换您的新标签页，支持Unsplash和Pixabay图片源",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://api.unsplash.com/*",
+    "https://pixabay.com/*"
+  ],
+  "chrome_url_overrides": {
+    "newtab": "dist/src/newtab.html"
+  },
+  "icons": {
+    "16": "public/icon-16.png",
+    "48": "public/icon-48.png", 
+    "128": "public/icon-128.png"
+  }
+} 

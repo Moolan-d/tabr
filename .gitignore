@@ -1,0 +1,38 @@
+# 依赖
+node_modules/
+.pnp
+.pnp.js
+
+# 开发工具
+.vscode/
+.idea/
+
+# 日志文件
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 环境变量
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 系统文件
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# 临时文件
+*.tmp
+*.temp
+
+# 构建输出（如果需要构建的话）
+dist/
+build/
+
+# Chrome 扩展打包文件
+*.crx
+*.pem 
