@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Tabr - Beautiful New Tab",
   "version": "1.0.1",
-  "description": "用精美的高清照片替换您的新标签页，支持Unsplash和Pixabay图片源",
+  "description": "Replace your new tab with stunning high-resolution photos, featuring image sources from Unsplash and Pixabay.",
   "permissions": [
     "storage"
   ],
