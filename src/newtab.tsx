@@ -97,7 +97,7 @@ const NewTab: React.FC = () => {
       
       if (photosToPreload.length > 0) {
         // 更新预加载缓存，限制最多2张图片
-        const newCache = [...photosToPreload, ...preloadCache].slice(0, 2);
+        const newCache = [...preloadCache,...photosToPreload].slice(0, 2);
         await setPreloadCache(newCache);
         setPreloadStatus('ready');
         console.log(`预加载完成：${photosToPreload.length}张图片，缓存总数：${newCache.length}`);
