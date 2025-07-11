@@ -4,28 +4,21 @@ import { PhotoData } from './fetchUnsplashPhoto';
 export interface CachedPhoto {
   data: PhotoData;
   timestamp: number;
-  source: 'unsplash' | 'pixabay';
+  source: 'unsplash';
 }
 
-const CACHE_KEY = {
-  unsplash: 'tabr_cache_unsplash',
-  pixabay: 'tabr_cache_pixabay',
-};
+// 缓存键定义 - 按review-guide.md要求
+const CACHE_KEY = 'tabr_cache_unsplash'; // 统一缓存键
 const FAVORITES_KEY = 'tabr_favorites';
 const CAROUSEL_CACHE_KEY = 'tabr_carousel_cache';
 const PRELOAD_CACHE_KEY = 'tabr_preload_cache';
+const CAROUSEL_MODE_KEY = 'tabr_carousel_mode';
 
-// 预加载缓存接口
-interface PreloadCache {
-  photos: PhotoData[];
-  timestamp: number;
-}
-
-// 获取缓存图片（maxAgeMs 毫秒内有效）
-export async function getCachedPhoto(source: 'unsplash' | 'pixabay', maxAgeMs: number): Promise<PhotoData | null> {
+// 获取当前显示图片的缓存（非心动模式）
+export async function getCachedPhoto(maxAgeMs: number): Promise<PhotoData | null> {
   return new Promise(resolve => {
-    chrome.storage.local.get([CACHE_KEY[source]], result => {
-      const cache: CachedPhoto = result[CACHE_KEY[source]];
+    chrome.storage.local.get([CACHE_KEY], result => {
+      const cache: CachedPhoto = result[CACHE_KEY];
       if (cache && Date.now() - cache.timestamp < maxAgeMs) {
         resolve(cache.data);
       } else {
@@ -35,10 +28,10 @@ export async function getCachedPhoto(source: 'unsplash' | 'pixabay', maxAgeMs: n
   });
 }
 
-// 设置缓存图片
-export async function setCachedPhoto(source: 'unsplash' | 'pixabay', data: PhotoData) {
-  const cache: CachedPhoto = { data, timestamp: Date.now(), source };
-  chrome.storage.local.set({ [CACHE_KEY[source]]: cache });
+// 设置当前显示图片的缓存（非心动模式）
+export async function setCachedPhoto(data: PhotoData) {
+  const cache: CachedPhoto = { data, timestamp: Date.now(), source: 'unsplash' };
+  chrome.storage.local.set({ [CACHE_KEY]: cache });
 }
 
 // 预加载图片到浏览器缓存
@@ -61,34 +54,29 @@ export async function preloadImage(url: string): Promise<boolean> {
   });
 }
 
-// 获取预加载缓存（无时间限制，永久有效）
+// 获取预加载队列（非心动模式）- 简化为直接存储PhotoData数组
 export async function getPreloadCache(): Promise<PhotoData[]> {
   return new Promise(resolve => {
     chrome.storage.local.get([PRELOAD_CACHE_KEY], result => {
-      const cache: PreloadCache = result[PRELOAD_CACHE_KEY];
-      if (cache && cache.photos && cache.photos.length > 0) {
-        resolve(cache.photos);
-      } else {
-        resolve([]);
-      }
+      resolve(result[PRELOAD_CACHE_KEY] || []);
     });
   });
 }
 
-// 设置预加载缓存
+// 设置预加载队列（非心动模式）- 限制最多2张
 export async function setPreloadCache(photos: PhotoData[]) {
-  const cache: PreloadCache = { photos, timestamp: Date.now() };
-  chrome.storage.local.set({ [PRELOAD_CACHE_KEY]: cache });
+  const limitedPhotos = photos.slice(0, 2); // 按review-guide限制为2张
+  chrome.storage.local.set({ [PRELOAD_CACHE_KEY]: limitedPhotos });
 }
 
-// 清除预加载缓存
+// 清除预加载队列
 export async function clearPreloadCache() {
   chrome.storage.local.remove([PRELOAD_CACHE_KEY]);
 }
 
 // 收藏管理
 export interface FavoritePhoto extends PhotoData {
-  source: 'unsplash' | 'pixabay';
+  source: 'unsplash';
   savedAt: number;
 }
 
@@ -130,46 +118,54 @@ export async function isFavorite(url: string): Promise<boolean> {
   return list.some(item => item.url === url);
 }
 
-// 获取收藏轮播的随机图片（带2分钟缓存）
-export async function getRandomFavoritePhoto(): Promise<FavoritePhoto | null> {
-  const maxAge = 2 * 60 * 1000; // 2分钟
-  
-  // 检查缓存
-  const cached = await new Promise<CarouselCache | null>(resolve => {
+// 获取心动模式的缓存图片（2分钟缓存）
+export async function getCarouselCachedPhoto(maxAgeMs: number): Promise<FavoritePhoto | null> {
+  return new Promise(resolve => {
     chrome.storage.local.get([CAROUSEL_CACHE_KEY], result => {
       const cache: CarouselCache = result[CAROUSEL_CACHE_KEY];
-      if (cache && Date.now() - cache.timestamp < maxAge) {
-        resolve(cache);
+      if (cache && Date.now() - cache.timestamp < maxAgeMs) {
+        resolve(cache.lastPhoto);
       } else {
         resolve(null);
       }
     });
   });
-  
-  if (cached) {
-    return cached.lastPhoto;
-  }
-  
-  // 获取收藏列表并随机选择
+}
+
+// 设置心动模式的缓存图片
+export async function setCarouselCachedPhoto(photo: FavoritePhoto) {
+  const cache: CarouselCache = {
+    lastPhoto: photo,
+    timestamp: Date.now()
+  };
+  chrome.storage.local.set({ [CAROUSEL_CACHE_KEY]: cache });
+}
+
+// 获取收藏列表中的随机图片（不带缓存）
+export async function getRandomFavoritePhoto(): Promise<FavoritePhoto | null> {
   const favorites = await getFavorites();
   if (favorites.length === 0) {
     return null;
   }
   
   const randomIndex = Math.floor(Math.random() * favorites.length);
-  const randomPhoto = favorites[randomIndex];
-  
-  // 缓存选中的图片
-  const carouselCache: CarouselCache = {
-    lastPhoto: randomPhoto,
-    timestamp: Date.now()
-  };
-  chrome.storage.local.set({ [CAROUSEL_CACHE_KEY]: carouselCache });
-  
-  return randomPhoto;
+  return favorites[randomIndex];
 }
 
-// 清除轮播缓存（用于强制刷新）
+// 清除心动模式缓存
 export async function clearCarouselCache() {
   chrome.storage.local.remove([CAROUSEL_CACHE_KEY]);
+}
+
+// 获取/设置心动模式状态
+export async function getCarouselMode(): Promise<boolean> {
+  return new Promise(resolve => {
+    chrome.storage.local.get([CAROUSEL_MODE_KEY], result => {
+      resolve(result[CAROUSEL_MODE_KEY] || false);
+    });
+  });
+}
+
+export async function setCarouselMode(enabled: boolean) {
+  chrome.storage.local.set({ [CAROUSEL_MODE_KEY]: enabled });
 } 

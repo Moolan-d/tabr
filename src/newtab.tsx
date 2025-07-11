@@ -4,427 +4,267 @@ import './styles.css';
 import Clock from './components/Clock';
 import SettingsMenu from './components/SettingsMenu';
 import { fetchUnsplashPhoto, PhotoData } from './api/fetchUnsplashPhoto';
-import { fetchPixabayPhoto } from './api/fetchPixabayPhoto';
 import { 
   addFavorite, 
   removeFavorite, 
   isFavorite, 
   getFavorites, 
-  getRandomFavoritePhoto, 
+  getRandomFavoritePhoto,
+  getCarouselCachedPhoto,
+  setCarouselCachedPhoto,
   clearCarouselCache,
-  preloadImage,
+  getCachedPhoto,
+  setCachedPhoto,
   getPreloadCache,
   setPreloadCache,
   clearPreloadCache,
-  getCachedPhoto,
-  setCachedPhoto
+  getCarouselMode,
+  setCarouselMode,
+  preloadImage
 } from './api/photoCache';
 
-// 常量定义
-const API_CACHE_MAX_AGE = 2 * 60 * 1000; // 2分钟
+// 常量定义 - 按review-guide.md要求
+const CACHE_MAX_AGE = 2 * 60 * 1000; // 2分钟
 
 const NewTab: React.FC = () => {
   const [photoData, setPhotoData] = useState<PhotoData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [photoSource, setPhotoSource] = useState<'unsplash' | 'pixabay'>('unsplash');
   const [errorType, setErrorType] = useState<'no-key' | 'api-error' | undefined>(undefined);
   const [favorite, setFavorite] = useState(false);
-  const [carouselMode, setCarouselMode] = useState(false);
-  const [carouselTimer, setCarouselTimer] = useState<number | null>(null);
-  const [preloadStatus, setPreloadStatus] = useState<'idle' | 'loading' | 'ready'>('idle');
+  const [carouselMode, setCarouselModeState] = useState(false);
+  const [preloadQueue, setPreloadQueueState] = useState<PhotoData[]>([]);
+  const [debugMode, setDebugMode] = useState(false);
 
-  // 预加载下一张图片
-  const preloadNextPhoto = useCallback(async (forceMultiple: boolean = false) => {
-    if (preloadStatus === 'loading' && !forceMultiple) return;
-    
-    setPreloadStatus('loading');
-    try {
-      const source = photoSource;
-      const photosToPreload: PhotoData[] = [];
-      const currentPhotoUrl = photoData?.url; // 获取当前显示的图片URL
-      
-      // 预加载逻辑：确保缓存中始终有足够的图片
-      const preloadCache = await getPreloadCache();
-      const maxCacheSize = 2;
-      
-      // 计算需要预加载的数量
-      let needCount;
-      if (forceMultiple) {
-        // 强制预加载：补充到最大缓存数量
-        needCount = maxCacheSize - preloadCache.length;
-      } else {
-        // 正常预加载：至少保持1张，最多2张
-        needCount = preloadCache.length === 0 ? 2 : (preloadCache.length < maxCacheSize ? 1 : 0);
-      }
-      
-      const actualNeedCount = Math.max(0, needCount);
-      
-      for (let i = 0; i < actualNeedCount; i++) {
-        let attempts = 0;
-        const maxAttempts = 5; // 最多尝试5次获取不同的图片
-        let nextPhoto: PhotoData | null = null;
-        
-        // 循环获取图片，确保不与当前显示的图片相同
-        do {
-          attempts++;
-          nextPhoto = source === 'unsplash' 
-            ? await fetchUnsplashPhoto(true) // 预加载时强制跳过缓存
-            : await fetchPixabayPhoto(true);
-          
-          // 如果获取到的图片与当前显示的图片相同，或与已预加载的图片相同，继续尝试
-          if (nextPhoto && nextPhoto.url && 
-              nextPhoto.url !== currentPhotoUrl && 
-              !photosToPreload.some(p => p.url === nextPhoto!.url) &&
-              !preloadCache.some(p => p.url === nextPhoto!.url)) {
-            break;
-          }
-          
-          // 如果尝试次数过多，等待一小段时间再重试
-          if (attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-        } while (attempts < maxAttempts);
-        
-        if (nextPhoto && nextPhoto.url && nextPhoto.url !== currentPhotoUrl) {
-          // 预加载图片到浏览器缓存
-          const success = await preloadImage(nextPhoto.url);
-          if (success) {
-            photosToPreload.push(nextPhoto);
-          }
-        }
-      }
-      
-      if (photosToPreload.length > 0) {
-        // 更新预加载缓存，限制最多2张图片
-        const newCache = [...preloadCache,...photosToPreload].slice(0, 2);
-        await setPreloadCache(newCache);
-        setPreloadStatus('ready');
-        console.log(`预加载完成：${photosToPreload.length}张图片，缓存总数：${newCache.length}`);
-      } else {
-        setPreloadStatus('idle');
-      }
-    } catch (error) {
-      console.error('预加载失败:', error);
-      setPreloadStatus('idle');
-    }
-  }, [photoSource, preloadStatus, photoData]);
+  // 初始化 - 读取用户设置
+  useEffect(() => {
+    const initializeApp = async () => {
+      // 读取心动模式状态
+      const carouselEnabled = await getCarouselMode();
+      setCarouselModeState(carouselEnabled);
 
-  // 获取照片数据
-  const fetchPhoto = async (source: 'unsplash' | 'pixabay' = photoSource, force: boolean = false) => {
-    setLoading(true);
-    setErrorType(undefined);
-    
-    try {
-      let data: PhotoData;
-      
-      if (force) {
-        // 强制刷新：直接获取新图片，清除所有缓存
-        await clearPreloadCache();
-        data = source === 'unsplash' 
-          ? await fetchUnsplashPhoto(true)
-          : await fetchPixabayPhoto(true);
-        console.log('强制刷新，直接获取新图片');
-        
-        // 延迟500ms后开始预加载图片
-        setTimeout(() => {
-          preloadNextPhoto(true);
-        }, 500);
-        
+      // 根据模式加载图片
+      if (carouselEnabled) {
+        await loadCarouselModePhoto();
       } else {
-        // 正常加载：按优先级检查缓存
-        
-        // 1. 优先检查API缓存（2分钟内有效）
-        console.log(`fetchPhoto: 检查API缓存 - source: ${source}`);
-        const apiCached = await getCachedPhoto(source, API_CACHE_MAX_AGE);
-          
-        if (apiCached) {
-          data = apiCached;
-          console.log(`✅ 使用API缓存（2分钟内）- URL: ${apiCached.url.substring(0, 50)}...`);
-          
-          // 确保有预加载数据准备
-          setTimeout(() => {
-            preloadNextPhoto(false);
-          }, 100);
-          
-        } else {
-          console.log('❌ API缓存失效或不存在');
-          
-          // 2. 缓存失效后，优先读取预加载缓存 (tabr_preload_cache)
-          const preloadCache = await getPreloadCache();
-          console.log(`📦 检查预加载缓存，数量: ${preloadCache.length}`);
-          
-          if (preloadCache.length > 0) {
-            // 🎯 优先使用预加载缓存中的资源
-            data = preloadCache[0];
-            await setPreloadCache(preloadCache.slice(1));
-            console.log(`✅ 使用预加载缓存资源 - URL: ${data.url.substring(0, 50)}...`);
-            
-            // 设置新的API缓存，重置2分钟计时器（不缓存备用图片）
-            if (!data.errorType) {
-              await setCachedPhoto(source, data);
-              console.log(`🔄 设置新的API缓存（来自预加载）`);
-            } else {
-              console.log(`⚠️ 跳过缓存备用图片`);
-            }
-            
-            // 立即补充预加载缓存，确保后续有图片可用
-            setTimeout(() => {
-              preloadNextPhoto(false);
-            }, 100);
-            
-          } else {
-            // 3. 只有在预加载缓存为空时，才重新请求新的资源
-            console.log('📦 预加载缓存为空，重新请求新的资源');
-            data = source === 'unsplash' 
-              ? await fetchUnsplashPhoto(true) // 跳过API内部缓存检查，因为我们已经检查过了
-              : await fetchPixabayPhoto(true);
-            console.log(`✅ 获取新资源 - URL: ${data.url.substring(0, 50)}...`);
-            
-            // 设置API缓存（不缓存备用图片）
-            if (!data.errorType) {
-              await setCachedPhoto(source, data);
-              console.log(`🔄 设置新的API缓存（来自API调用）`);
-            } else {
-              console.log(`⚠️ 跳过缓存备用图片`);
-            }
-            
-            // 重新建立预加载缓存池
-            setTimeout(() => {
-              preloadNextPhoto(true);
-            }, 500);
-          }
-        }
+        await loadNormalModePhoto();
       }
-      
-      setPhotoData(data);
-      setErrorType((data as any).errorType);
-      
-      // 图片设置完成后重置预加载状态
-      setPreloadStatus('idle');
-      
-    } catch (error) {
-      setErrorType('api-error');
-      console.error('获取图片失败:', error);
-    } finally {
-      setLoading(false);
-    }
+    };
+
+    initializeApp();
+  }, []);
+
+  // 更新预加载队列状态显示
+  const updatePreloadQueueDisplay = async () => {
+    const queue = await getPreloadCache();
+    setPreloadQueueState(queue);
   };
 
-  // 初始化
+  // 初始化时更新预加载队列显示
   useEffect(() => {
-    // 从存储中读取用户偏好
-    chrome.storage.sync.get(['photoSource'], (result) => {
-      const source = result.photoSource || 'unsplash';
-      setPhotoSource(source);
-      fetchPhoto(source);
-    });
+    updatePreloadQueueDisplay();
   }, []);
 
   // 检查当前图片是否已收藏
   useEffect(() => {
-    if (photoData && photoData.url) {
+    if (photoData?.url) {
       isFavorite(photoData.url).then(setFavorite);
-    } else {
-      setFavorite(false);
     }
   }, [photoData]);
+
+  // 非心动模式：按review-guide.md核心缓存逻辑
+  const loadNormalModePhoto = async () => {
+   
+    setErrorType(undefined);
+
+    try {
+      // 1. 检查当前显示图片的2分钟缓存
+      const cachedPhoto = await getCachedPhoto(CACHE_MAX_AGE);
+      if (cachedPhoto) {
+        setPhotoData(cachedPhoto);
+        setErrorType((cachedPhoto as any).errorType);
+       
+        return;
+      }
+     
+
+      // 2. 缓存过期，使用预加载队列第一张图片
+      const preloadQueue = await getPreloadCache();
+      if (preloadQueue.length > 0) {
+        const nextPhoto = preloadQueue[0]; // 取第一张 (shift)
+        const remainingQueue = preloadQueue.slice(1); // 移除第一张
+        
+        // 立即更新显示，减少白屏时间
+        setPhotoData(nextPhoto);
+        setErrorType((nextPhoto as any).errorType);
+     
+        
+        // 同步处理缓存更新，确保队列正常工作
+        await Promise.all([
+          setCachedPhoto(nextPhoto),
+          setPreloadCache(remainingQueue)
+        ]);
+        
+        // 更新显示状态
+        await updatePreloadQueueDisplay();
+        
+        // 异步补充新图片到队列
+        refillPreloadQueue();
+        
+        return;
+      }
+
+      // 3. 首次使用或队列为空，获取新图片并建立队列
+      await initializePreloadQueue();
+      
+    } catch (error) {
+      console.error('加载图片失败:', error);
+      setErrorType('api-error');
+    } finally {
+     
+    }
+  };
+
+  // 心动模式：循环展示收藏图片
+  const loadCarouselModePhoto = async () => {
+    
+    setErrorType(undefined);
+
+    try {
+      // 1. 检查心动模式的2分钟缓存
+      const cachedCarouselPhoto = await getCarouselCachedPhoto(CACHE_MAX_AGE);
+      if (cachedCarouselPhoto) {
+        setPhotoData(cachedCarouselPhoto);
+        
+        return;
+      }
+
+      // 2. 缓存过期，从收藏列表随机选择新图片
+      const randomPhoto = await getRandomFavoritePhoto();
+      if (randomPhoto) {
+        setPhotoData(randomPhoto);
+      
+        // 异步更新缓存，不阻塞UI
+        setCarouselCachedPhoto(randomPhoto).catch(console.error);
+      } else {
+        // 没有收藏图片，关闭心动模式
+        setCarouselModeState(false);
+        await setCarouselMode(false);
+        await loadNormalModePhoto();
+      }
+    } catch (error) {
+      console.error('心动模式加载失败:', error);
+      setErrorType('api-error');
+    } finally {
+      
+    }
+  };
+
+  // 初始化预加载队列 - 获取两张图片
+  const initializePreloadQueue = async () => {
+    setLoading(true);
+    // 获取第一张图片并立即显示
+    const firstPhoto = await fetchUnsplashPhoto(true);
+    setLoading(false);
+    setPhotoData(firstPhoto);
+    setErrorType((firstPhoto as any).errorType);
+    
+    // 同步处理缓存和第二张图片
+    const [_, secondPhoto] = await Promise.all([
+      setCachedPhoto(firstPhoto),
+      fetchUnsplashPhoto(true) // 获取第二张图片
+    ]);
+    
+    if (secondPhoto.url !== firstPhoto.url) {
+      // 预加载第二张图片到浏览器缓存
+      await preloadImage(secondPhoto.url);
+      // 建立预加载队列
+      await setPreloadCache([secondPhoto]);
+      // 更新显示状态
+      await updatePreloadQueueDisplay();
+    }
+  };
+
+  // 补充预加载队列 - 保持队列长度为2
+  const refillPreloadQueue = async () => {
+    const currentQueue = await getPreloadCache();
+    
+    // 如果队列不满2张，补充新图片
+    while (currentQueue.length < 2) {
+      const newPhoto = await fetchUnsplashPhoto(true);
+      
+      // 确保不重复
+      if (!currentQueue.some(p => p.url === newPhoto.url) && 
+          photoData?.url !== newPhoto.url) {
+        await preloadImage(newPhoto.url);
+        currentQueue.push(newPhoto);
+      }
+    }
+    
+    await setPreloadCache(currentQueue);
+    // 更新显示状态
+    await updatePreloadQueueDisplay();
+  };
+
+  // 心动模式2分钟定时器
+  useEffect(() => {
+    if (!carouselMode) return;
+
+    const timer = setInterval(async () => {
+      await clearCarouselCache();
+      await loadCarouselModePhoto();
+    }, CACHE_MAX_AGE);
+
+    return () => clearInterval(timer);
+  }, [carouselMode]);
+
+  // 处理心动模式切换
+  const handleCarouselToggle = async () => {
+    const newMode = !carouselMode;
+    setCarouselModeState(newMode);
+    await setCarouselMode(newMode);
+
+    if (newMode) {
+      // 开启心动模式
+      const favorites = await getFavorites();
+      if (favorites.length === 0) {
+        alert('您还没有收藏任何图片，无法开启心动模式');
+        setCarouselModeState(false);
+        await setCarouselMode(false);
+        return;
+      }
+      await loadCarouselModePhoto();
+    } else {
+      // 关闭心动模式
+      await clearCarouselCache();
+      await loadNormalModePhoto();
+    }
+  };
+
+  // 刷新照片功能 - 简化为只使用Unsplash
+  const handleRefreshPhoto = async () => {
+    if (carouselMode) {
+      await clearCarouselCache();
+      await loadCarouselModePhoto();
+    } else {
+      await clearPreloadCache();
+      await updatePreloadQueueDisplay();
+      await initializePreloadQueue();
+    }
+  };
 
   // 收藏/取消收藏
   const handleFavorite = async () => {
     if (!photoData) return;
+    
     if (favorite) {
       await removeFavorite(photoData.url);
       setFavorite(false);
     } else {
-      await addFavorite({ ...photoData, source: photoSource, savedAt: Date.now() });
+      await addFavorite({ ...photoData, source: 'unsplash', savedAt: Date.now() });
       setFavorite(true);
     }
   };
-
-  // 轮播模式下的图片获取逻辑
-  const loadCarouselPhoto = async () => {
-    if (!carouselMode) return;
-    
-    setLoading(true);
-    setErrorType(undefined);
-    
-    try {
-      const randomPhoto = await getRandomFavoritePhoto();
-      if (randomPhoto) {
-        setPhotoData(randomPhoto);
-        setErrorType((randomPhoto as any).errorType);
-      } else {
-        // 如果没有收藏图片，自动关闭轮播模式
-        setCarouselMode(false);
-        console.log('轮播模式：没有收藏图片，自动关闭');
-      }
-    } catch (error) {
-      console.error('轮播模式加载图片失败:', error);
-      setErrorType('api-error');
-      setCarouselMode(false);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 轮播模式启动时加载图片
-  useEffect(() => {
-    if (carouselMode) {
-      loadCarouselPhoto();
-    }
-  }, [carouselMode]);
-
-  // 轮播模式定时器：2分钟后切换到下一张随机图片
-  useEffect(() => {
-    if (carouselMode) {
-      // 清除之前的定时器
-      if (carouselTimer) clearTimeout(carouselTimer);
-      
-      // 设置2分钟定时器，使用预加载逻辑
-      const timer = window.setTimeout(async () => {
-        // 轮播模式优先使用预加载数据，如果没有则加载收藏图片
-        const preloadCache = await getPreloadCache();
-        if (preloadCache.length > 0) {
-          const preloadedPhoto = preloadCache[0];
-          await setPreloadCache(preloadCache.slice(1));
-          setPhotoData(preloadedPhoto);
-          console.log('轮播模式：使用预加载图片');
-          // 立即补充预加载缓存
-          setTimeout(() => preloadNextPhoto(false), 100);
-        } else {
-          // 没有预加载数据时回退到收藏图片
-          clearCarouselCache().then(() => {
-            loadCarouselPhoto();
-          });
-        }
-      }, 2 * 60 * 1000);
-      
-      setCarouselTimer(timer);
-      
-      return () => clearTimeout(timer);
-    } else {
-      // 关闭轮播模式时清理定时器
-      if (carouselTimer) {
-        clearTimeout(carouselTimer);
-        setCarouselTimer(null);
-      }
-    }
-  }, [carouselMode]);
-
-  // 处理照片来源切换
-  const handleSourceChange = (source: 'unsplash' | 'pixabay') => {
-    setPhotoSource(source);
-    if (!carouselMode) {
-      // 清除预加载缓存，因为切换了来源
-      clearPreloadCache();
-      fetchPhoto(source, true);
-    }
-  };
-
-  // 刷新照片 - 强制获取新图片，确保切换
-  const handleRefreshPhoto = async () => {
-    setLoading(true);
-    setErrorType(undefined);
-    
-    try {
-      const currentImageUrl = photoData?.url;
-      let data: PhotoData;
-      let attempts = 0;
-      const maxAttempts = 3;
-      
-      // 清除所有相关缓存，确保获取新图片
-      await clearPreloadCache();
-      if (carouselMode) {
-        await clearCarouselCache();
-      }
-      
-      // 循环获取图片，直到获取到与当前不同的图片
-      do {
-        attempts++;
-        console.log(`刷新尝试 ${attempts}：强制获取新图片`);
-        
-        if (carouselMode) {
-          // 轮播模式：获取随机收藏图片
-          const randomPhoto = await getRandomFavoritePhoto();
-          if (randomPhoto) {
-            data = randomPhoto;
-          } else {
-            // 如果没有收藏图片，关闭轮播模式并获取新图片（跳过缓存）
-            setCarouselMode(false);
-            data = photoSource === 'unsplash' 
-              ? await fetchUnsplashPhoto(true)
-              : await fetchPixabayPhoto(true);
-          }
-        } else {
-          // 普通模式：直接调用API获取新图片（跳过缓存）
-          data = photoSource === 'unsplash' 
-            ? await fetchUnsplashPhoto(true)
-            : await fetchPixabayPhoto(true);
-        }
-        
-        // 如果获取到的图片和当前图片相同，并且还有尝试次数，继续获取
-        if (data.url === currentImageUrl && attempts < maxAttempts) {
-          console.log('获取到相同图片，重新尝试...');
-          // 等待一小段时间再重试，避免API限制
-          await new Promise(resolve => setTimeout(resolve, 200));
-          continue;
-        }
-        
-        break;
-      } while (attempts < maxAttempts);
-      
-      // 设置新图片数据
-      setPhotoData(data);
-      setErrorType((data as any).errorType);
-      
-      // 如果最终还是相同图片，给出提示
-      if (data.url === currentImageUrl) {
-        console.log('注意：刷新后仍是相同图片，可能是API返回了缓存数据');
-      } else {
-        console.log('刷新成功：获取到新图片');
-      }
-      
-      // 图片设置完成后重置预加载状态
-      setPreloadStatus('idle');
-      
-      // 延迟1秒后开始预加载多张图片（给API一些时间）
-      setTimeout(() => {
-        preloadNextPhoto(true);
-      }, 1000);
-      
-    } catch (error) {
-      console.error('刷新图片失败:', error);
-      setErrorType('api-error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 轮播模式持久化
-  useEffect(() => {
-    chrome.storage.local.get(['tabr_carousel_mode'], result => {
-      if (result.tabr_carousel_mode) {
-        setCarouselMode(true);
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    chrome.storage.local.set({ tabr_carousel_mode: carouselMode });
-  }, [carouselMode]);
-
-  // 轮播模式开启时检查收藏数量
-  useEffect(() => {
-    if (carouselMode) {
-      getFavorites().then(list => {
-        if (list.length === 0) {
-          setCarouselMode(false);
-          alert('您还没有收藏任何图片，无法开启轮播模式');
-        }
-      });
-    }
-  }, [carouselMode]);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden">
@@ -448,8 +288,6 @@ const NewTab: React.FC = () => {
           </div>
         </div>
       )}
-
-
 
       {/* 主要内容 */}
       <div className="relative z-10 w-full h-full flex flex-col">
@@ -486,7 +324,7 @@ const NewTab: React.FC = () => {
             </svg>
           </button>
 
-          {/* 右下角：摄影师信息+收藏按钮+轮播按钮 */}
+          {/* 右下角：摄影师信息+收藏按钮+心动模式按钮 */}
           <div className="text-white text-shadow flex items-center space-x-4">
             <div>
               <div className="flex items-center space-x-3">
@@ -502,12 +340,12 @@ const NewTab: React.FC = () => {
                 </a>
               </div>
             </div>
+            
             {/* 收藏按钮 */}
             <button
               onClick={handleFavorite}
               title={favorite ? '取消收藏' : '收藏'}
               className="ml-2 p-1 rounded-full bg-black bg-opacity-20 hover:bg-opacity-40 transition-all"
-              style={{ outline: 'none', border: 'none' }}
             >
               {favorite ? (
                 <svg className="w-4 h-4 text-pink-400" fill="currentColor" viewBox="0 0 24 24">
@@ -519,29 +357,65 @@ const NewTab: React.FC = () => {
                 </svg>
               )}
             </button>
-            {/* 轮播模式 Switch 按钮 */}
+            
+            {/* 心动模式按钮 */}
             <button
-              onClick={() => setCarouselMode(v => !v)}
+              onClick={handleCarouselToggle}
               className="ml-2 p-1 rounded-full bg-black bg-opacity-20 hover:bg-opacity-40 transition-all flex items-center"
-              style={{ outline: 'none', border: 'none' }}
-              title={carouselMode ? '关闭收藏模式' : '开启收藏模式'}
+              title={carouselMode ? '关闭心动模式' : '开启心动模式'}
             >
-              {/* Switch icon */}
               <span className={`inline-block w-6 h-4 rounded-full transition-colors duration-200 ${carouselMode ? 'bg-blue-500' : 'bg-gray-400'}`}
                 style={{ position: 'relative' }}>
                 <span className={`absolute left-0 top-0 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${carouselMode ? 'translate-x-2' : ''}`}></span>
               </span>
               <span className="ml-1 text-xs select-none">Heart</span>
             </button>
+            
+            {/* 调试模式按钮 */}
+            <button
+              onClick={() => setDebugMode(!debugMode)}
+              className="ml-2 p-1 rounded-full bg-black bg-opacity-20 hover:bg-opacity-40 transition-all"
+              title={debugMode ? '关闭调试模式' : '开启调试模式'}
+            >
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
           </div>
         </div>
+        
+        {/* 预加载队列调试界面 */}
+        {debugMode && !carouselMode && (
+          <div className="absolute bottom-20 right-4 bg-black bg-opacity-60 backdrop-blur-lg rounded-lg p-3 text-white text-xs">
+            <div className="text-center mb-2 font-semibold">预加载队列 ({preloadQueue.length}/2)</div>
+            <div className="flex flex-col space-y-2">
+              {preloadQueue.map((photo, index) => (
+                <div key={photo.url} className="flex items-center space-x-2">
+                  <div className="w-10 h-7 bg-gray-300 rounded overflow-hidden">
+                    <img
+                      src={photo.url}
+                      alt={`预加载图片 ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="text-xs">
+                    <div>Next {index + 1}</div>
+                    <div className="text-gray-300">{photo.photographer}</div>
+                  </div>
+                </div>
+              ))}
+              {preloadQueue.length === 0 && (
+                <div className="text-gray-400 text-center">队列为空</div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* 设置菜单 */}
+      {/* 设置菜单 - 移除源选择功能 */}
       <SettingsMenu
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
-        onSourceChange={handleSourceChange}
       />
     </div>
   );
@@ -552,4 +426,4 @@ const container = document.getElementById('root');
 if (container) {
   const root = createRoot(container);
   root.render(<NewTab />);
-} 
+}
