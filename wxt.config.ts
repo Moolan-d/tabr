@@ -1,10 +1,15 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'wxt';
+
+const pkg = JSON.parse(readFileSync('./package.json', 'utf8')) as { version: string };
+const extensionVersion = process.env.EXTENSION_VERSION ?? pkg.version;
 
 export default defineConfig({
   srcDir: 'src',
   manifest: {
     name: 'Tabr - Beautiful New Tab',
-    version: '1.0.3',
+    version: extensionVersion,
+    version_name: extensionVersion,
     description: 'Replace your new tab with stunning high-resolution photos, featuring image sources from Unsplash and Pixabay.',
     permissions: ['storage'],
     host_permissions: [
