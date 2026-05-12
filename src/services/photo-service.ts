@@ -33,7 +33,6 @@ export class PhotoService {
   private listeners = new Set<Listener>();
   private carouselTimer: ReturnType<typeof setInterval> | null = null;
   private initialized = false;
-  private initPromise: Promise<void> | null = null;
 
   private cache: CacheLayer;
   private favorites: FavoritesService;
@@ -48,7 +47,7 @@ export class PhotoService {
   subscribe = (listener: Listener): (() => void) => {
     this.listeners.add(listener);
     if (!this.initialized) {
-      this.initPromise = this.initialize();
+      this.initialize();
     }
     return () => this.listeners.delete(listener);
   };

@@ -12,7 +12,6 @@ const NewTab: React.FC = () => {
   const {
     photo,
     loading,
-    errorType,
     isFavorite,
     carouselMode,
     preloadQueue,
