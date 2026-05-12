@@ -1,88 +1,111 @@
-# Tabr - 美丽的新标签页 Chrome 扩展
+# Tabr
 
-一个使用 React + TypeScript + Tailwind CSS 构建的 Chrome 扩展，用精美的高清照片替换您的新标签页。
+A Chrome Extension that replaces your new tab page with beautiful, high-resolution photos from Unsplash.
 
-## ✨ 功能特点
+## Features
 
-- 🖼️ **精美背景**: 从 Unsplash 和 500px 获取高质量照片
-- 🕒 **智能时钟**: 显示当前时间和智能中文问候语
-- ⚙️ **可配置**: 在 Unsplash 和 500px 之间切换照片来源
-- 🔄 **一键刷新**: 随时更换背景图片
-- 💾 **记住偏好**: 自动保存用户设置
-- 🎨 **现代设计**: 使用 Tailwind CSS 的简洁美观界面
+- Dynamic background photos on every new tab
+- Favorite photos and browse your collection
+- Carousel mode to rotate through your favorites
+- Preloaded image queue for instant transitions
+- Clock with smart greeting messages
+- Debug panel for inspecting queue state
 
-## 🚀 快速开始
+## Install from Chrome Web Store
 
-### 1. 安装依赖
+[Install Tabr from the Chrome Web Store](https://chromewebstore.google.com/detail/tabr-beautiful-new-tab/glkibhfldimabmhadblnkfhlflljdlkf)
+
+## Install from Source
+
 ```bash
+git clone https://github.com/Moolan-d/tabr.git
+cd tabr
 npm install
-```
-
-### 2. 构建项目
-```bash
 npm run build
 ```
 
-### 3. 在 Chrome 中加载扩展
-1. 打开 Chrome 浏览器
-2. 访问 `chrome://extensions/`
-3. 开启右上角"开发者模式"
-4. 点击"加载已解压的扩展程序"
-5. 选择此项目文件夹
+Then load the `.output` directory as an unpacked extension in Chrome (`chrome://extensions/` > Developer mode > Load unpacked).
 
-### 4. 开始开发
-- 修改代码后运行 `npm run build`
-- 在 Chrome 扩展页面点击"重新加载"
-- 详细开发指南请查看 [DEVELOPMENT.md](./DEVELOPMENT.md)
-
-## 🔧 开发命令
+## Development
 
 ```bash
-# 构建项目（必需）
+# Build once
 npm run build
 
-# 监视模式 - 自动重新构建
-npm run build:watch
-
-# 组件预览模式
+# Watch mode - rebuilds on file changes
 npm run dev
 ```
 
-## 📁 项目结构
+## Architecture
 
 ```
-tabr/
-├── manifest.json              # Chrome 扩展配置
-├── dist/                      # 构建输出（自动生成）
-├── src/
-│   ├── newtab.html           # 新标签页入口
-│   ├── newtab.tsx            # 主 React 组件
-│   ├── components/           # React 组件
-│   └── api/                  # API 接口
-├── scripts/                   # 构建脚本
-├── public/                   # 静态资源
-└── DEVELOPMENT.md            # 详细开发指南
+src/
+├── providers/          # Photo source abstraction
+│   ├── types.ts        # Photo, PhotoSource, FavoritePhoto interfaces
+│   ├── unsplash.ts     # Unsplash PhotoSource implementation
+│   └── registry.ts     # Source registration and management
+│
+├── services/           # Core business logic (no React dependency)
+│   ├── cache.ts        # Chrome storage cache with TTL
+│   ├── favorites.ts    # Favorites CRUD + random pick for carousel
+│   ├── preload-queue.ts # Preloaded image queue (capacity 2, 10min TTL, 3 retries)
+│   └── photo-service.ts # Central orchestrator, subscribe/notify state
+│
+├── hooks/
+│   └── usePhotoService.ts  # React bridge via useSyncExternalStore
+│
+├── components/         # Presentational components
+│   ├── Background.tsx
+│   ├── BottomBar.tsx
+│   ├── Clock.tsx
+│   ├── DebugPanel.tsx
+│   └── SettingsMenu.tsx
+│
+└── entrypoints/
+    └── newtab/
+        └── main.tsx    # Thin shell (~80 lines)
 ```
 
-## 🛠️ 技术栈
+**Design principle:** React components only subscribe and render. All business logic, caching, and timers live in the service layer.
 
-- **前端**: React 18 + TypeScript
-- **样式**: Tailwind CSS
-- **构建工具**: Vite
-- **扩展**: Chrome Extension Manifest V3
+## Adding a New Photo Source
 
-## 💡 开发提示
+Implement the `PhotoSource` interface and register it:
 
-- **必须构建**: Chrome 扩展无法直接运行 TypeScript，需要先构建
-- **监视模式**: 使用 `npm run build:watch` 实现自动重新构建
-- **组件调试**: 使用 `npm run dev` 在浏览器中快速预览组件
+```typescript
+import type { PhotoSource, Photo } from './providers/types';
+import { sourceRegistry } from './providers/registry';
 
-## 📖 更多信息
+const mySource: PhotoSource = {
+  id: 'my-source',
+  async fetchRandom(): Promise<Photo> {
+    // fetch from your API
+    return {
+      url: '...',
+      photographerName: '...',
+      photographerLink: '...',
+      originalLink: '...',
+      source: 'my-source',
+    };
+  },
+};
 
-- [开发指南](./DEVELOPMENT.md) - 详细的开发流程和技巧
-- [Chrome Extension 文档](https://developer.chrome.com/docs/extensions/)
-- [Unsplash API](https://unsplash.com/documentation)
+sourceRegistry.register(mySource);
+```
 
-## 📄 许可证
+No changes needed in the service or UI layers.
 
-MIT License# tabr
+## CI/CD
+
+- **CI:** Every pull request runs typecheck and build checks
+- **Release:** Pushes to `main` trigger `semantic-release`, which analyzes commit messages and creates a new version automatically (`feat:` = minor, `fix:` = patch)
+- **Publish:** New releases are zipped via `wxt zip`, uploaded to GitHub Releases, and submitted to the Chrome Web Store
+
+To release manually, use the `workflow_dispatch` trigger in GitHub Actions with an existing tag.
+
+## Tech Stack
+
+- [WXT](https://wxt.dev/) - Browser extension framework
+- React 18 + TypeScript
+- Tailwind CSS
+- Unsplash API

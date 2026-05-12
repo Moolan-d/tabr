@@ -35,4 +35,7 @@ build/
 
 # Chrome 扩展打包文件
 *.crx
-*.pem 
+*.pem
+
+.wxt/
+.output/
