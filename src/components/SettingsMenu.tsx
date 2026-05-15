@@ -1,12 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface SettingsMenuProps {
   isOpen: boolean;
   onClose: () => void;
+  cloudStatus: 'connected' | 'local-only';
+  onExport: () => void;
+  onImport: (file: File) => Promise<{ imported: number; error?: string }>;
 }
 
-const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose }) => {
+const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, cloudStatus, onExport, onImport }) => {
   const [unsplashKey, setUnsplashKey] = useState('');
+  const [importResult, setImportResult] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     chrome.storage.sync.get(['unsplashKey'], (result) => {
@@ -18,20 +23,31 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose }) => {
     chrome.storage.sync.set({ unsplashKey });
   };
 
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const result = await onImport(file);
+    if (result.error) {
+      setImportResult(result.error);
+    } else {
+      setImportResult(`Imported ${result.imported} new favorite(s)`);
+    }
+    setTimeout(() => setImportResult(null), 3000);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   if (!isOpen) return null;
 
   return (
     <>
-      {/* 背景遮罩 */}
-      <div 
+      <div
         className="fixed inset-0 bg-black bg-opacity-30 z-40"
         onClick={onClose}
       />
-      
-      {/* 设置菜单 */}
+
       <div className="fixed top-16 right-4 bg-white bg-opacity-90 backdrop-blur-subtle rounded-lg shadow-lg p-4 z-50 min-w-48">
-        <h3 className="text-lg font-semibold text-gray-800 mb-3">Unsplash 设置</h3>
-        
+        <h3 className="text-lg font-semibold text-gray-800 mb-3">Settings</h3>
+
         <div className="space-y-2">
           <div className="w-full text-left px-3 py-2 rounded-md bg-blue-500 text-white">
             <div className="flex items-center justify-between">
@@ -39,11 +55,11 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose }) => {
               <span className="text-xs">✓</span>
             </div>
             <div className="text-xs opacity-75 mt-1">
-              高质量摄影作品
+              High quality photography
             </div>
           </div>
         </div>
-        
+
         <div className="mt-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Unsplash API Key</label>
@@ -51,7 +67,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose }) => {
               <input
                 type="text"
                 className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring focus:border-blue-300 text-sm"
-                placeholder="请输入您的 Unsplash Access Key"
+                placeholder="Enter your Unsplash Access Key"
                 value={unsplashKey}
                 onChange={e => setUnsplashKey(e.target.value)}
               />
@@ -59,17 +75,55 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose }) => {
                 onClick={handleKeySave}
                 className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm whitespace-nowrap"
                 style={{ minWidth: '80px' }}
-              >保存 Key</button>
+              >Save Key</button>
             </div>
           </div>
         </div>
-        
+
+        {/* Cloud sync status */}
+        <div className="mt-4 pt-3 border-t border-gray-200">
+          <div className="flex items-center space-x-2 mb-3">
+            <span className={`inline-block w-2 h-2 rounded-full ${cloudStatus === 'connected' ? 'bg-green-500' : 'bg-gray-400'}`} />
+            <span className="text-sm text-gray-700">
+              {cloudStatus === 'connected' ? 'Synced with Google Drive' : 'Local only'}
+            </span>
+          </div>
+
+          {cloudStatus === 'local-only' && (
+            <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+              Favorites are stored locally and may be lost. Export regularly as backup.
+            </div>
+          )}
+
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={onExport}
+              className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded text-gray-700"
+            >Export</button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded text-gray-700"
+            >Import</button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              className="hidden"
+              onChange={handleImport}
+            />
+          </div>
+
+          {importResult && (
+            <div className="mt-2 text-xs text-gray-600">{importResult}</div>
+          )}
+        </div>
+
         <div className="mt-4 pt-3 border-t border-gray-200">
           <button
             onClick={onClose}
             className="text-sm text-gray-500 hover:text-gray-700"
           >
-            关闭设置
+            Close
           </button>
         </div>
       </div>

@@ -3,6 +3,7 @@ import { sourceRegistry } from '../providers/registry';
 import { CacheLayer } from './cache';
 import { FavoritesService } from './favorites';
 import { PreloadQueue } from './preload-queue';
+import { GoogleDriveProvider } from './cloud/google-drive';
 
 const DISPLAY_CACHE_KEY = 'tabr_display_cache';
 const CAROUSEL_CACHE_KEY = 'tabr_carousel_cache';
@@ -17,6 +18,7 @@ export interface PhotoServiceState {
   isFavorite: boolean;
   carouselMode: boolean;
   preloadQueue: Photo[];
+  cloudStatus: 'connected' | 'local-only';
 }
 
 type Listener = () => void;
@@ -28,6 +30,7 @@ export class PhotoService {
     isFavorite: false,
     carouselMode: false,
     preloadQueue: [],
+    cloudStatus: 'local-only',
   };
 
   private listeners = new Set<Listener>();
@@ -40,7 +43,7 @@ export class PhotoService {
 
   constructor() {
     this.cache = new CacheLayer();
-    this.favorites = new FavoritesService(this.cache);
+    this.favorites = new FavoritesService(this.cache, new GoogleDriveProvider());
     this.queue = new PreloadQueue(this.cache, sourceRegistry.getCurrent());
   }
 
@@ -88,9 +91,10 @@ export class PhotoService {
       this.setState({ isFavorite: false });
     } else {
       await this.favorites.add({
-        ...photo,
-        savedAt: Date.now(),
-      } as FavoritePhoto);
+        url: photo.url,
+        photoName: photo.photographerName,
+        source: photo.source,
+      });
       this.setState({ isFavorite: true });
     }
   };
@@ -118,9 +122,26 @@ export class PhotoService {
     }
   };
 
+  exportFavorites = (): void => {
+    this.favorites.exportJson();
+  };
+
+  importFavorites = async (file: File): Promise<{ imported: number; error?: string }> => {
+    const result = await this.favorites.importJson(file);
+    if (result.imported > 0) {
+      this.setState({ cloudStatus: await this.favorites.getCloudStatus() });
+    }
+    return result;
+  };
+
   private async initialize(): Promise<void> {
     if (this.initialized) return;
     this.initialized = true;
+
+    // Sync favorites with cloud before loading photos
+    await this.favorites.initSync();
+    const cloudStatus = await this.favorites.getCloudStatus();
+    this.setState({ cloudStatus });
 
     const carouselMode = await this.cache.getRaw<boolean>(CAROUSEL_MODE_KEY) ?? false;
     this.setState({ carouselMode });
@@ -160,7 +181,7 @@ export class PhotoService {
     // 1. Check carousel cache
     const cached = await this.cache.get<FavoritePhoto>(CAROUSEL_CACHE_KEY, DISPLAY_CACHE_TTL);
     if (cached) {
-      await this.setPhoto(cached);
+      this.setPhotoFromFavorite(cached);
       return;
     }
 
@@ -168,7 +189,7 @@ export class PhotoService {
     const lastUrl = this.state.photo?.url;
     const photo = await this.favorites.getRandom(lastUrl);
     if (photo) {
-      await this.setPhoto(photo);
+      this.setPhotoFromFavorite(photo);
       await this.cache.set(CAROUSEL_CACHE_KEY, photo);
     } else {
       // No favorites, fall back to normal
@@ -203,6 +224,19 @@ export class PhotoService {
     const isFavorite = await this.favorites.isFavorite(photo.url);
     const errorType = (photo as any).errorType as PhotoServiceState['errorType'];
     this.setState({ photo, isFavorite, errorType, loading: false });
+  }
+
+  private setPhotoFromFavorite(fav: FavoritePhoto): void {
+    const photo: Photo = {
+      url: fav.url,
+      photographerName: fav.photoName,
+      photographerLink: '',
+      originalLink: '',
+      source: fav.source,
+    };
+    this.favorites.isFavorite(fav.url).then(isFavorite => {
+      this.setState({ photo, isFavorite, loading: false });
+    });
   }
 
   private async updateQueueDisplay(): Promise<void> {

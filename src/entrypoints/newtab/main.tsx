@@ -15,9 +15,12 @@ const NewTab: React.FC = () => {
     isFavorite,
     carouselMode,
     preloadQueue,
+    cloudStatus,
     refresh,
     toggleFavorite,
     toggleCarousel,
+    exportFavorites,
+    importFavorites,
   } = usePhotoService();
 
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -67,6 +70,9 @@ const NewTab: React.FC = () => {
       <SettingsMenu
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+        cloudStatus={cloudStatus}
+        onExport={exportFavorites}
+        onImport={importFavorites}
       />
     </div>
   );
