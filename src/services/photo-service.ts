@@ -3,7 +3,6 @@ import { sourceRegistry } from '../providers/registry';
 import { CacheLayer } from './cache';
 import { FavoritesService } from './favorites';
 import { PreloadQueue } from './preload-queue';
-import { GoogleDriveProvider } from './cloud/google-drive';
 
 const DISPLAY_CACHE_KEY = 'tabr_display_cache';
 const CAROUSEL_CACHE_KEY = 'tabr_carousel_cache';
@@ -18,7 +17,6 @@ export interface PhotoServiceState {
   isFavorite: boolean;
   carouselMode: boolean;
   preloadQueue: Photo[];
-  cloudStatus: 'connected' | 'local-only';
 }
 
 type Listener = () => void;
@@ -30,7 +28,6 @@ export class PhotoService {
     isFavorite: false,
     carouselMode: false,
     preloadQueue: [],
-    cloudStatus: 'local-only',
   };
 
   private listeners = new Set<Listener>();
@@ -43,7 +40,7 @@ export class PhotoService {
 
   constructor() {
     this.cache = new CacheLayer();
-    this.favorites = new FavoritesService(this.cache, new GoogleDriveProvider());
+    this.favorites = new FavoritesService(this.cache);
     this.queue = new PreloadQueue(this.cache, sourceRegistry.getCurrent());
   }
 
@@ -127,21 +124,12 @@ export class PhotoService {
   };
 
   importFavorites = async (file: File): Promise<{ imported: number; error?: string }> => {
-    const result = await this.favorites.importJson(file);
-    if (result.imported > 0) {
-      this.setState({ cloudStatus: await this.favorites.getCloudStatus() });
-    }
-    return result;
+    return this.favorites.importJson(file);
   };
 
   private async initialize(): Promise<void> {
     if (this.initialized) return;
     this.initialized = true;
-
-    // Sync favorites with cloud before loading photos
-    await this.favorites.initSync();
-    const cloudStatus = await this.favorites.getCloudStatus();
-    this.setState({ cloudStatus });
 
     const carouselMode = await this.cache.getRaw<boolean>(CAROUSEL_MODE_KEY) ?? false;
     this.setState({ carouselMode });

@@ -8,6 +8,7 @@ export function usePhotoService(): PhotoServiceState & {
   exportFavorites: () => void;
   importFavorites: (file: File) => Promise<{ imported: number; error?: string }>;
 } {
+
   const service = getPhotoService();
 
   const state = useSyncExternalStore(

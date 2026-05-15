@@ -3,12 +3,11 @@ import React, { useState, useEffect, useRef } from 'react';
 interface SettingsMenuProps {
   isOpen: boolean;
   onClose: () => void;
-  cloudStatus: 'connected' | 'local-only';
   onExport: () => void;
   onImport: (file: File) => Promise<{ imported: number; error?: string }>;
 }
 
-const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, cloudStatus, onExport, onImport }) => {
+const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onExport, onImport }) => {
   const [unsplashKey, setUnsplashKey] = useState('');
   const [importResult, setImportResult] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -80,21 +79,8 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, cloudStatu
           </div>
         </div>
 
-        {/* Cloud sync status */}
+        {/* Favorites backup */}
         <div className="mt-4 pt-3 border-t border-gray-200">
-          <div className="flex items-center space-x-2 mb-3">
-            <span className={`inline-block w-2 h-2 rounded-full ${cloudStatus === 'connected' ? 'bg-green-500' : 'bg-gray-400'}`} />
-            <span className="text-sm text-gray-700">
-              {cloudStatus === 'connected' ? 'Synced with Google Drive' : 'Local only'}
-            </span>
-          </div>
-
-          {cloudStatus === 'local-only' && (
-            <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
-              Favorites are stored locally and may be lost. Export regularly as backup.
-            </div>
-          )}
-
           <div className="flex items-center space-x-2">
             <button
               onClick={onExport}

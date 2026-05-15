@@ -1,9 +1,7 @@
 import { FavoritePhoto } from '../providers/types';
 import { CacheLayer } from './cache';
-import type { CloudProvider } from './cloud/types';
 
 const FAVORITES_KEY = 'tabr_favorites';
-const DEBOUNCE_MS = 5_000;
 
 function isOldFormat(item: any): boolean {
   return 'savedAt' in item || 'photographerLink' in item || 'originalLink' in item;
@@ -17,10 +15,10 @@ function migrateOne(item: any): FavoritePhoto {
   };
 }
 
-function mergeByUrl(local: FavoritePhoto[], remote: FavoritePhoto[]): FavoritePhoto[] {
+function mergeByUrl(local: FavoritePhoto[], incoming: FavoritePhoto[]): FavoritePhoto[] {
   const seen = new Set(local.map(f => f.url));
   const merged = [...local];
-  for (const fav of remote) {
+  for (const fav of incoming) {
     if (!seen.has(fav.url)) {
       merged.push(fav);
       seen.add(fav.url);
@@ -31,15 +29,8 @@ function mergeByUrl(local: FavoritePhoto[], remote: FavoritePhoto[]): FavoritePh
 
 export class FavoritesService {
   private migrated = false;
-  private dirty = false;
-  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private cloudAvailable = false;
-  private syncing = false;
 
-  constructor(
-    private cache: CacheLayer,
-    private cloud: CloudProvider,
-  ) {}
+  constructor(private cache: CacheLayer) {}
 
   async getAll(): Promise<FavoritePhoto[]> {
     if (!this.migrated) {
@@ -48,48 +39,17 @@ export class FavoritesService {
     return (await this.cache.getRaw<FavoritePhoto[]>(FAVORITES_KEY)) ?? [];
   }
 
-  async initSync(): Promise<void> {
-    try {
-      this.cloudAvailable = await this.cloud.isAvailable();
-      if (!this.cloudAvailable) return;
-
-      const remote = await this.cloud.pull();
-      if (!remote) {
-        // No file on Drive — push local as source of truth
-        const local = await this.getAll();
-        if (local.length > 0) {
-          await this.cloud.push(local);
-        }
-        return;
-      }
-
-      const local = await this.getAll();
-      const merged = mergeByUrl(local, remote);
-      await this.cache.setRaw(FAVORITES_KEY, merged);
-
-      if (merged.length !== local.length || merged.length !== remote.length) {
-        await this.cloud.push(merged);
-      }
-    } catch {
-      // Network error or Drive failure — continue local-only
-      this.cloudAvailable = false;
-    }
-  }
-
   async add(photo: FavoritePhoto): Promise<void> {
     const list = await this.getAll();
     if (!list.some(item => item.url === photo.url)) {
       list.push(photo);
       await this.cache.setRaw(FAVORITES_KEY, list);
-      this.schedulePush();
     }
   }
 
   async remove(url: string): Promise<void> {
     const list = await this.getAll();
-    const filtered = list.filter(item => item.url !== url);
-    await this.cache.setRaw(FAVORITES_KEY, filtered);
-    this.schedulePush();
+    await this.cache.setRaw(FAVORITES_KEY, list.filter(item => item.url !== url));
   }
 
   async isFavorite(url: string): Promise<boolean> {
@@ -108,10 +68,6 @@ export class FavoritesService {
 
     const pool = candidates.length > 0 ? candidates : list;
     return pool[Math.floor(Math.random() * pool.length)];
-  }
-
-  async getCloudStatus(): Promise<'connected' | 'local-only'> {
-    return this.cloudAvailable ? 'connected' : 'local-only';
   }
 
   exportJson(): void {
@@ -155,31 +111,10 @@ export class FavoritesService {
       const before = local.length;
       const merged = mergeByUrl(local, valid);
       await this.cache.setRaw(FAVORITES_KEY, merged);
-      this.schedulePush();
 
       return { imported: merged.length - before };
     } catch {
       return { imported: 0, error: 'Failed to read file' };
-    }
-  }
-
-  private schedulePush(): void {
-    this.dirty = true;
-    if (this.debounceTimer) clearTimeout(this.debounceTimer);
-    this.debounceTimer = setTimeout(() => { this.doPush(); }, DEBOUNCE_MS);
-  }
-
-  private async doPush(): Promise<void> {
-    if (!this.dirty || !this.cloudAvailable || this.syncing) return;
-    this.syncing = true;
-    try {
-      const list = await this.getAll();
-      await this.cloud.push(list);
-      this.dirty = false;
-    } catch {
-      // Push failed silently — will retry on next change
-    } finally {
-      this.syncing = false;
     }
   }
 

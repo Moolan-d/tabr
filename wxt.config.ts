@@ -11,11 +11,10 @@ export default defineConfig({
     version: extensionVersion,
     version_name: extensionVersion,
     description: 'Replace your new tab with stunning high-resolution photos, featuring image sources from Unsplash and Pixabay.',
-    permissions: ['storage', 'identity'],
+    permissions: ['storage'],
     host_permissions: [
       'https://api.unsplash.com/*',
       'https://pixabay.com/*',
-      'https://www.googleapis.com/*',
     ],
     icons: {
       16: 'icon-16.png',
