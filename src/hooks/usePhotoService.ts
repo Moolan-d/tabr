@@ -6,6 +6,7 @@ export function usePhotoService(): PhotoServiceState & {
   resetAndRefresh: () => Promise<void>;
   toggleFavorite: () => Promise<void>;
   toggleCarousel: () => Promise<void>;
+  toggleCleanMode: () => Promise<void>;
   exportFavorites: () => void;
   importFavorites: (file: File) => Promise<{ imported: number; error?: string }>;
 } {
@@ -23,6 +24,7 @@ export function usePhotoService(): PhotoServiceState & {
     resetAndRefresh: service.resetAndRefresh,
     toggleFavorite: service.toggleFavorite,
     toggleCarousel: service.toggleCarousel,
+    toggleCleanMode: service.toggleCleanMode,
     exportFavorites: service.exportFavorites,
     importFavorites: service.importFavorites,
   };

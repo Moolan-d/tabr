@@ -7,9 +7,20 @@ interface SettingsMenuProps {
   onExport: () => void;
   onImport: (file: File) => Promise<{ imported: number; error?: string }>;
   quotaExceeded?: boolean;
+  cleanMode?: boolean;
+  onToggleCleanMode?: () => void;
 }
 
-const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onKeySaved, onExport, onImport, quotaExceeded }) => {
+const SettingsMenu: React.FC<SettingsMenuProps> = ({
+  isOpen,
+  onClose,
+  onKeySaved,
+  onExport,
+  onImport,
+  quotaExceeded,
+  cleanMode,
+  onToggleCleanMode,
+}) => {
   const [unsplashKey, setUnsplashKey] = useState('');
   const [saved, setSaved] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
@@ -53,7 +64,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onKeySaved
       />
 
       {/* Panel */}
-      <div className="fixed top-16 right-4 z-50 w-80
+      <div className="fixed top-16 right-4 z-50 w-96
         bg-white/80 backdrop-blur-xl
         border border-white/40
         rounded-2xl shadow-2xl shadow-black/10
@@ -119,6 +130,29 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onKeySaved
               ) : 'Save'}
             </button>
           </div>
+        </div>
+
+        {/* Divider */}
+        <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent mx-5" />
+
+        {/* Clean Mode */}
+        <div className="px-5 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Clean Mode
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Hide all UI for immersive wallpaper
+            </p>
+          </div>
+          <button
+            onClick={onToggleCleanMode}
+            className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200 cursor-pointer ${cleanMode ? "bg-violet-600" : "bg-gray-300"}`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 mt-0.5 ${cleanMode ? "translate-x-4 ml-0.5" : "translate-x-0.5"}`}
+            />
+          </button>
         </div>
 
         {/* Divider */}

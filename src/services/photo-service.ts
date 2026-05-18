@@ -7,6 +7,7 @@ import { PreloadQueue } from './preload-queue';
 const DISPLAY_CACHE_KEY = 'tabr_display_cache';
 const CAROUSEL_CACHE_KEY = 'tabr_carousel_cache';
 const CAROUSEL_MODE_KEY = 'tabr_carousel_mode';
+const CLEAN_MODE_KEY = 'tabr_clean_mode';
 const DISPLAY_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
 const CAROUSEL_INTERVAL = 2 * 60 * 1000; // 2 minutes
 
@@ -18,6 +19,7 @@ export interface PhotoServiceState {
   carouselMode: boolean;
   preloadQueue: Photo[];
   quotaExceeded: boolean;
+  cleanMode: boolean;
 }
 
 type Listener = () => void;
@@ -30,6 +32,7 @@ export class PhotoService {
     carouselMode: false,
     preloadQueue: [],
     quotaExceeded: false,
+    cleanMode: false,
   };
 
   private listeners = new Set<Listener>();
@@ -127,6 +130,12 @@ export class PhotoService {
     }
   };
 
+  toggleCleanMode = async (): Promise<void> => {
+    const cleanMode = !this.state.cleanMode;
+    await this.cache.setRaw(CLEAN_MODE_KEY, cleanMode);
+    this.setState({ cleanMode });
+  };
+
   exportFavorites = (): void => {
     this.favorites.exportJson();
   };
@@ -138,6 +147,9 @@ export class PhotoService {
   private async initialize(): Promise<void> {
     if (this.initialized) return;
     this.initialized = true;
+
+    const cleanMode = await this.cache.getRaw<boolean>(CLEAN_MODE_KEY) ?? false;
+    this.setState({ cleanMode });
 
     const carouselMode = await this.cache.getRaw<boolean>(CAROUSEL_MODE_KEY) ?? false;
     this.setState({ carouselMode });
