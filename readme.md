@@ -13,7 +13,7 @@ A Chrome Extension that replaces your new tab page with beautiful, high-resoluti
 
 ## Install from Chrome Web Store
 
-[Install Tabr from the Chrome Web Store](https://chromewebstore.google.com/detail/tabr-beautiful-new-tab/glkibhfldimabmhadblnkfhlflljdlkf)
+[Install Tabr from the Chrome Web Store](https://chromewebstore.google.com/detail/tabr-beautiful-new-tab/jkplbdmkjpniomhdaikeaoihglhofgmb)
 
 ## Install from Source
 
