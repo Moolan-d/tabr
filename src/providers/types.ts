@@ -6,8 +6,10 @@ export interface Photo {
   source: string;
 }
 
-export interface FavoritePhoto extends Photo {
-  savedAt: number;
+export interface FavoritePhoto {
+  url: string;
+  photoName: string;
+  source: string;
 }
 
 export interface PhotoSource {

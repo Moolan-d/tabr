@@ -7,16 +7,19 @@ import { PreloadQueue } from './preload-queue';
 const DISPLAY_CACHE_KEY = 'tabr_display_cache';
 const CAROUSEL_CACHE_KEY = 'tabr_carousel_cache';
 const CAROUSEL_MODE_KEY = 'tabr_carousel_mode';
+const CLEAN_MODE_KEY = 'tabr_clean_mode';
 const DISPLAY_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
 const CAROUSEL_INTERVAL = 2 * 60 * 1000; // 2 minutes
 
 export interface PhotoServiceState {
   photo: Photo | null;
   loading: boolean;
-  errorType?: 'no-key' | 'api-error';
+  errorType?: 'no-key' | 'api-error' | 'quota-exceeded';
   isFavorite: boolean;
   carouselMode: boolean;
   preloadQueue: Photo[];
+  quotaExceeded: boolean;
+  cleanMode: boolean;
 }
 
 type Listener = () => void;
@@ -28,6 +31,8 @@ export class PhotoService {
     isFavorite: false,
     carouselMode: false,
     preloadQueue: [],
+    quotaExceeded: false,
+    cleanMode: false,
   };
 
   private listeners = new Set<Listener>();
@@ -54,6 +59,12 @@ export class PhotoService {
 
   getState = (): PhotoServiceState => {
     return this.state;
+  };
+
+  resetAndRefresh = async (): Promise<void> => {
+    await this.cache.remove(DISPLAY_CACHE_KEY);
+    await this.queue.clear();
+    await this.refresh();
   };
 
   refresh = async (): Promise<void> => {
@@ -88,9 +99,10 @@ export class PhotoService {
       this.setState({ isFavorite: false });
     } else {
       await this.favorites.add({
-        ...photo,
-        savedAt: Date.now(),
-      } as FavoritePhoto);
+        url: photo.url,
+        photoName: photo.photographerName,
+        source: photo.source,
+      });
       this.setState({ isFavorite: true });
     }
   };
@@ -118,9 +130,26 @@ export class PhotoService {
     }
   };
 
+  toggleCleanMode = async (): Promise<void> => {
+    const cleanMode = !this.state.cleanMode;
+    await this.cache.setRaw(CLEAN_MODE_KEY, cleanMode);
+    this.setState({ cleanMode });
+  };
+
+  exportFavorites = (): void => {
+    this.favorites.exportJson();
+  };
+
+  importFavorites = async (file: File): Promise<{ imported: number; error?: string }> => {
+    return this.favorites.importJson(file);
+  };
+
   private async initialize(): Promise<void> {
     if (this.initialized) return;
     this.initialized = true;
+
+    const cleanMode = await this.cache.getRaw<boolean>(CLEAN_MODE_KEY) ?? false;
+    this.setState({ cleanMode });
 
     const carouselMode = await this.cache.getRaw<boolean>(CAROUSEL_MODE_KEY) ?? false;
     this.setState({ carouselMode });
@@ -160,7 +189,7 @@ export class PhotoService {
     // 1. Check carousel cache
     const cached = await this.cache.get<FavoritePhoto>(CAROUSEL_CACHE_KEY, DISPLAY_CACHE_TTL);
     if (cached) {
-      await this.setPhoto(cached);
+      this.setPhotoFromFavorite(cached);
       return;
     }
 
@@ -168,7 +197,7 @@ export class PhotoService {
     const lastUrl = this.state.photo?.url;
     const photo = await this.favorites.getRandom(lastUrl);
     if (photo) {
-      await this.setPhoto(photo);
+      this.setPhotoFromFavorite(photo);
       await this.cache.set(CAROUSEL_CACHE_KEY, photo);
     } else {
       // No favorites, fall back to normal
@@ -202,7 +231,21 @@ export class PhotoService {
     await this.cache.set(DISPLAY_CACHE_KEY, photo);
     const isFavorite = await this.favorites.isFavorite(photo.url);
     const errorType = (photo as any).errorType as PhotoServiceState['errorType'];
-    this.setState({ photo, isFavorite, errorType, loading: false });
+    const quotaExceeded = errorType === 'quota-exceeded';
+    this.setState({ photo, isFavorite, errorType, quotaExceeded, loading: false });
+  }
+
+  private setPhotoFromFavorite(fav: FavoritePhoto): void {
+    const photo: Photo = {
+      url: fav.url,
+      photographerName: fav.photoName,
+      photographerLink: '',
+      originalLink: '',
+      source: fav.source,
+    };
+    this.favorites.isFavorite(fav.url).then(isFavorite => {
+      this.setState({ photo, isFavorite, loading: false });
+    });
   }
 
   private async updateQueueDisplay(): Promise<void> {

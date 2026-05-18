@@ -26,6 +26,22 @@ npm run build
 
 Then load the `.output` directory as an unpacked extension in Chrome (`chrome://extensions/` > Developer mode > Load unpacked).
 
+## Configuration
+
+Tabr uses the Unsplash API to fetch photos. A built-in trial key is included (limited to 10 requests), which is enough for most daily use. If you need more, you can configure your own key:
+
+1. Go to [Unsplash Developers](https://unsplash.com/developers) and register as a developer.
+2. Visit [Your Apps](https://unsplash.com/oauth/applications) and click on one of your applications to open its details page.
+3. On the application page (`https://unsplash.com/oauth/applications/<app-id>`), copy the **Access Key** shown on the page.
+
+![Unsplash application access key](./assets/6FF032C1-7720-4C28-AAE7-EF4F5518C3EE.png)
+
+4. Open a new tab in Chrome, click the **Settings** button (top-right corner), paste the key into the **Unsplash API Key** field, and click **Save**.
+
+![Tabr settings API key input](./assets/44D2E062-036F-478C-BDD3-9D7594E49783.png)
+
+The new key takes effect immediately — no reload required.
+
 ## Development
 
 ```bash

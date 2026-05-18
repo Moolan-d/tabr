@@ -15,9 +15,15 @@ const NewTab: React.FC = () => {
     isFavorite,
     carouselMode,
     preloadQueue,
+    quotaExceeded,
+    cleanMode,
     refresh,
+    resetAndRefresh,
     toggleFavorite,
     toggleCarousel,
+    toggleCleanMode,
+    exportFavorites,
+    importFavorites,
   } = usePhotoService();
 
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -32,7 +38,7 @@ const NewTab: React.FC = () => {
         <div className="absolute top-4 right-4">
           <button
             onClick={() => setSettingsOpen(true)}
-            className="p-2 bg-black bg-opacity-20 hover:bg-opacity-30 text-white rounded-full backdrop-blur-subtle transition-all duration-200"
+            className={`p-2 rounded-full backdrop-blur-subtle transition-all duration-200 ${cleanMode ? 'bg-black/5 hover:bg-black/20 text-white/30 hover:text-white/80' : 'bg-black/20 hover:bg-black/30 text-white'}`}
             title="Settings"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -43,30 +49,40 @@ const NewTab: React.FC = () => {
         </div>
 
         {/* Clock */}
-        <div className="flex-1 flex items-center justify-center">
-          <Clock />
-        </div>
+        {!cleanMode && (
+          <div className="flex-1 flex items-center justify-center">
+            <Clock />
+          </div>
+        )}
 
         {/* Bottom bar */}
-        <BottomBar
-          photo={photo}
-          loading={loading}
-          isFavorite={isFavorite}
-          carouselMode={carouselMode}
-          debugMode={debugMode}
-          onRefresh={refresh}
-          onToggleFavorite={toggleFavorite}
-          onToggleCarousel={toggleCarousel}
-          onToggleDebug={() => setDebugMode(prev => !prev)}
-        />
+        {!cleanMode && (
+          <BottomBar
+            photo={photo}
+            loading={loading}
+            isFavorite={isFavorite}
+            carouselMode={carouselMode}
+            debugMode={debugMode}
+            onRefresh={refresh}
+            onToggleFavorite={toggleFavorite}
+            onToggleCarousel={toggleCarousel}
+            onToggleDebug={() => setDebugMode(prev => !prev)}
+          />
+        )}
 
         {/* Debug panel */}
-        {debugMode && !carouselMode && <DebugPanel queue={preloadQueue} />}
+        {!cleanMode && debugMode && !carouselMode && <DebugPanel queue={preloadQueue} />}
       </div>
 
       <SettingsMenu
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+        onKeySaved={resetAndRefresh}
+        onExport={exportFavorites}
+        onImport={importFavorites}
+        quotaExceeded={quotaExceeded}
+        cleanMode={cleanMode}
+        onToggleCleanMode={toggleCleanMode}
       />
     </div>
   );
