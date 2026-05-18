@@ -40,12 +40,12 @@ export class UnsplashSource implements PhotoSource {
         throw new Error(`HTTP ${response.status}`);
       }
 
+      const data = await response.json();
+      const photo = Array.isArray(data) ? data[0] : data;
+
       if (isBuiltin) {
         await this.incrementQuota();
       }
-
-      const data = await response.json();
-      const photo = Array.isArray(data) ? data[0] : data;
 
       return {
         url: photo.urls.full,
@@ -79,10 +79,10 @@ export class UnsplashSource implements PhotoSource {
   }
 
   private async incrementQuota(): Promise<void> {
-    const raw = await new Promise<{ c?: number; s?: number }>(resolve => {
-      chrome.storage.local.get([QUOTA_KEY], result => resolve(result[QUOTA_KEY] ?? {}));
+    const raw = await new Promise<{ c?: number; s?: number } | undefined>(resolve => {
+      chrome.storage.local.get([QUOTA_KEY], result => resolve(result[QUOTA_KEY]));
     });
-    const prev = (raw.s === QUOTA_SALT(raw.c ?? 0)) ? (raw.c ?? 0) : QUOTA_LIMIT;
+    const prev = (raw && raw.s === QUOTA_SALT(raw.c ?? 0)) ? (raw.c ?? 0) : 0;
     const c = prev + 1;
     chrome.storage.local.set({ [QUOTA_KEY]: { c, s: QUOTA_SALT(c) } });
   }
