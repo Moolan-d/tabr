@@ -15,6 +15,7 @@ const NewTab: React.FC = () => {
     isFavorite,
     carouselMode,
     preloadQueue,
+    quotaExceeded,
     refresh,
     resetAndRefresh,
     toggleFavorite,
@@ -73,6 +74,7 @@ const NewTab: React.FC = () => {
         onKeySaved={resetAndRefresh}
         onExport={exportFavorites}
         onImport={importFavorites}
+        quotaExceeded={quotaExceeded}
       />
     </div>
   );

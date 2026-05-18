@@ -13,10 +13,11 @@ const CAROUSEL_INTERVAL = 2 * 60 * 1000; // 2 minutes
 export interface PhotoServiceState {
   photo: Photo | null;
   loading: boolean;
-  errorType?: 'no-key' | 'api-error';
+  errorType?: 'no-key' | 'api-error' | 'quota-exceeded';
   isFavorite: boolean;
   carouselMode: boolean;
   preloadQueue: Photo[];
+  quotaExceeded: boolean;
 }
 
 type Listener = () => void;
@@ -28,6 +29,7 @@ export class PhotoService {
     isFavorite: false,
     carouselMode: false,
     preloadQueue: [],
+    quotaExceeded: false,
   };
 
   private listeners = new Set<Listener>();
@@ -217,7 +219,8 @@ export class PhotoService {
     await this.cache.set(DISPLAY_CACHE_KEY, photo);
     const isFavorite = await this.favorites.isFavorite(photo.url);
     const errorType = (photo as any).errorType as PhotoServiceState['errorType'];
-    this.setState({ photo, isFavorite, errorType, loading: false });
+    const quotaExceeded = errorType === 'quota-exceeded';
+    this.setState({ photo, isFavorite, errorType, quotaExceeded, loading: false });
   }
 
   private setPhotoFromFavorite(fav: FavoritePhoto): void {
