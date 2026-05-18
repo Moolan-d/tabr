@@ -56,6 +56,12 @@ export class PhotoService {
     return this.state;
   };
 
+  resetAndRefresh = async (): Promise<void> => {
+    await this.cache.remove(DISPLAY_CACHE_KEY);
+    await this.queue.clear();
+    await this.refresh();
+  };
+
   refresh = async (): Promise<void> => {
     if (this.state.carouselMode) {
       await this.loadCarouselMode();

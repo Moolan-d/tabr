@@ -3,6 +3,7 @@ import { getPhotoService, PhotoServiceState } from '../services/photo-service';
 
 export function usePhotoService(): PhotoServiceState & {
   refresh: () => Promise<void>;
+  resetAndRefresh: () => Promise<void>;
   toggleFavorite: () => Promise<void>;
   toggleCarousel: () => Promise<void>;
   exportFavorites: () => void;
@@ -19,6 +20,7 @@ export function usePhotoService(): PhotoServiceState & {
   return {
     ...state,
     refresh: service.refresh,
+    resetAndRefresh: service.resetAndRefresh,
     toggleFavorite: service.toggleFavorite,
     toggleCarousel: service.toggleCarousel,
     exportFavorites: service.exportFavorites,

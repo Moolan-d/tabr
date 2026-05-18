@@ -3,11 +3,12 @@ import React, { useState, useEffect, useRef } from 'react';
 interface SettingsMenuProps {
   isOpen: boolean;
   onClose: () => void;
+  onKeySaved: () => Promise<void>;
   onExport: () => void;
   onImport: (file: File) => Promise<{ imported: number; error?: string }>;
 }
 
-const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onExport, onImport }) => {
+const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onKeySaved, onExport, onImport }) => {
   const [unsplashKey, setUnsplashKey] = useState('');
   const [importResult, setImportResult] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -19,7 +20,9 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ isOpen, onClose, onExport, 
   }, []);
 
   const handleKeySave = () => {
-    chrome.storage.sync.set({ unsplashKey });
+    chrome.storage.sync.set({ unsplashKey }, () => {
+      onKeySaved();
+    });
   };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {

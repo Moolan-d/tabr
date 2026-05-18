@@ -16,6 +16,7 @@ const NewTab: React.FC = () => {
     carouselMode,
     preloadQueue,
     refresh,
+    resetAndRefresh,
     toggleFavorite,
     toggleCarousel,
     exportFavorites,
@@ -69,6 +70,7 @@ const NewTab: React.FC = () => {
       <SettingsMenu
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
+        onKeySaved={resetAndRefresh}
         onExport={exportFavorites}
         onImport={importFavorites}
       />
