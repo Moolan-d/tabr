@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { t } from '../i18n/translations';
 
 interface SettingsMenuProps {
   isOpen: boolean;
@@ -27,6 +28,24 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
   const [keyEditing, setKeyEditing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Animation state
+  const [visible, setVisible] = useState(false);   // DOM mounted?
+  const [entering, setEntering] = useState(false);  // CSS transition class
+  const backdropRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setVisible(true);
+      requestAnimationFrame(() => requestAnimationFrame(() => setEntering(true)));
+    } else if (visible) {
+      setEntering(false);
+    }
+  }, [isOpen]);
+
+  const handleTransitionEnd = () => {
+    if (!entering) setVisible(false);
+  };
+
   useEffect(() => {
     chrome.storage.sync.get(['unsplashKey'], (result) => {
       if (result.unsplashKey) {
@@ -54,32 +73,42 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
     if (result.error) {
       setImportResult(result.error);
     } else {
-      setImportResult(`Imported ${result.imported} new favorite(s)`);
+      setImportResult(t('importedN').replace('{n}', String(result.imported)));
     }
     setTimeout(() => setImportResult(null), 3000);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  if (!isOpen) return null;
+  if (!visible) return null;
 
   return (
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 transition-opacity duration-200"
+        ref={backdropRef}
+        className={`fixed inset-0 z-40 backdrop-blur-sm transition-opacity duration-300 ease-out
+          ${entering ? 'bg-black/30 opacity-100' : 'bg-black/0 opacity-0'}`}
         onClick={onClose}
       />
 
       {/* Panel */}
-      <div className="fixed top-16 right-4 z-50 w-96
-        bg-white/80 backdrop-blur-xl
-        border border-white/40
-        rounded-2xl shadow-2xl shadow-black/10
-        overflow-hidden">
+      <div
+        onTransitionEnd={handleTransitionEnd}
+        className={`fixed top-16 right-4 z-50 w-96
+          bg-white/80 backdrop-blur-xl
+          border border-white/40
+          rounded-2xl shadow-2xl shadow-black/10
+          overflow-hidden
+          transition-all duration-300 ease-out
+          ${entering
+            ? 'opacity-100 translate-y-0 scale-100'
+            : 'opacity-0 -translate-y-2 scale-95'
+          }`}
+      >
 
         {/* Header */}
         <div className="px-5 pt-5 pb-3">
-          <h3 className="text-base font-semibold text-gray-900 tracking-tight">Settings</h3>
+          <h3 className="text-base font-semibold text-gray-900 tracking-tight">{t('settings')}</h3>
         </div>
 
         {/* Quota exceeded warning */}
@@ -90,16 +119,16 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
                 <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
               </svg>
               <div>
-                <p className="text-xs font-medium text-amber-800">Trial requests exhausted</p>
+                <p className="text-xs font-medium text-amber-800">{t('trialExhausted')}</p>
                 <p className="text-xs text-amber-700/80 mt-0.5 leading-relaxed">
-                  Get your own free key from{' '}
+                  {t('getOwnKeyPrefix')}{' '}
                   <a
                     href="https://unsplash.com/developers"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="underline underline-offset-2 hover:text-amber-900 transition-colors"
-                  >Unsplash Developers</a>
-                  {' '}to continue.
+                  >{t('unsplashDevelopers')}</a>
+                  {' '}{t('toContinue')}
                 </p>
               </div>
             </div>
@@ -109,7 +138,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
         {/* API Key section */}
         <div className="px-5 pb-4">
           <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">
-            Unsplash API Key
+            {t('unsplashApiKey')}
           </label>
           <div className="flex gap-2">
             <input
@@ -119,7 +148,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
                   ? 'bg-white/60 border border-gray-200/80 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400/40 focus:border-violet-300'
                   : 'bg-gray-100/60 border border-transparent text-gray-500 cursor-default'
                 }`}
-              placeholder={keyEditing ? 'Paste your Access Key' : 'Double-click to edit'}
+              placeholder={keyEditing ? t('pasteKey') : t('dblClickEdit')}
               value={unsplashKey}
               readOnly={!keyEditing}
               onChange={e => setUnsplashKey(e.target.value)}
@@ -138,7 +167,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
                   <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                     <path d="M3 8.5l3.5 3.5L13 4"/>
                   </svg>
-                ) : 'Save'}
+                ) : t('save')}
               </button>
             )}
           </div>
@@ -151,10 +180,10 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
         <div className="px-5 py-4 flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Clean Mode
+              {t('cleanMode')}
             </p>
             <p className="text-xs text-gray-500 mt-0.5">
-              Hide all UI for immersive wallpaper
+              {t('cleanModeDesc')}
             </p>
           </div>
           <button
@@ -173,7 +202,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
         {/* Favorites backup */}
         <div className="px-5 py-4">
           <p className="text-xs font-medium text-gray-500 mb-2.5 uppercase tracking-wider">
-            Favorites Backup
+            {t('favoritesBackup')}
           </p>
           <div className="flex gap-2">
             <button
@@ -186,7 +215,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
               <svg className="w-3.5 h-3.5 text-gray-500" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M8 2v8m0 0l-2.5-2.5M8 10l2.5-2.5M3 12.5v1a1.5 1.5 0 001.5 1.5h7a1.5 1.5 0 001.5-1.5v-1"/>
               </svg>
-              Export
+              {t('exportFavorites')}
             </button>
             <button
               onClick={() => fileInputRef.current?.click()}
@@ -198,7 +227,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
               <svg className="w-3.5 h-3.5 text-gray-500" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M8 14V6m0 0L5.5 8.5M8 6l2.5 2.5M3 3.5v-1A1.5 1.5 0 014.5 1h7A1.5 1.5 0 0113 2.5v1"/>
               </svg>
-              Import
+              {t('importFavorites')}
             </button>
             <input
               ref={fileInputRef}
@@ -223,7 +252,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
             className="w-full py-2 text-sm text-gray-400 hover:text-gray-600
               transition-colors duration-150 cursor-pointer"
           >
-            Close
+            {t('close')}
           </button>
         </div>
       </div>

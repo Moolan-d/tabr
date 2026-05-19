@@ -1,3 +1,13 @@
+export type AppLocale = 'zh-TW' | 'zh-CN' | 'ja' | 'en';
+
+export function detectLocale(lang: string): AppLocale {
+  if (lang.startsWith('zh') && (lang.includes('TW') || lang.includes('Hant') || lang.includes('HK') || lang.includes('MO')))
+    return 'zh-TW';
+  if (lang.startsWith('zh')) return 'zh-CN';
+  if (lang.startsWith('ja')) return 'ja';
+  return 'en';
+}
+
 interface TimeSlot {
   start: number;
   end: number;
@@ -5,7 +15,7 @@ interface TimeSlot {
 }
 
 interface LocaleConfig {
-  match: (lang: string) => boolean;
+  locale: AppLocale;
   timeSlots: TimeSlot[];
   timeLocale: string;
   hour12: boolean;
@@ -13,9 +23,7 @@ interface LocaleConfig {
 
 const localeConfigs: LocaleConfig[] = [
   {
-    match: (lang) =>
-      lang.startsWith('zh') &&
-      (lang.includes('TW') || lang.includes('Hant') || lang.includes('HK') || lang.includes('MO')),
+    locale: 'zh-TW',
     timeSlots: [
       { start: 5, end: 12, greeting: '早安' },
       { start: 12, end: 18, greeting: '午安' },
@@ -26,7 +34,7 @@ const localeConfigs: LocaleConfig[] = [
     hour12: false,
   },
   {
-    match: (lang) => lang.startsWith('zh'),
+    locale: 'zh-CN',
     timeSlots: [
       { start: 5, end: 9, greeting: '早上好' },
       { start: 9, end: 12, greeting: '上午好' },
@@ -39,7 +47,7 @@ const localeConfigs: LocaleConfig[] = [
     hour12: false,
   },
   {
-    match: (lang) => lang.startsWith('ja'),
+    locale: 'ja',
     timeSlots: [
       { start: 5, end: 12, greeting: 'おはようございます' },
       { start: 12, end: 18, greeting: 'こんにちは' },
@@ -50,7 +58,7 @@ const localeConfigs: LocaleConfig[] = [
     hour12: false,
   },
   {
-    match: () => true,
+    locale: 'en',
     timeSlots: [
       { start: 5, end: 12, greeting: 'Good morning' },
       { start: 12, end: 18, greeting: 'Good afternoon' },
@@ -63,7 +71,8 @@ const localeConfigs: LocaleConfig[] = [
 ];
 
 function resolveLocale(lang: string): LocaleConfig {
-  return localeConfigs.find((c) => c.match(lang))!;
+  const locale = detectLocale(lang);
+  return localeConfigs.find((c) => c.locale === locale)!;
 }
 
 function getGreeting(hour: number, lang: string): string {

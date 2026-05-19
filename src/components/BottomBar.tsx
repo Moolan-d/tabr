@@ -1,5 +1,6 @@
 import React from 'react';
 import { Photo } from '../providers/types';
+import { t } from '../i18n/translations';
 
 interface BottomBarProps {
   photo: Photo | null;
@@ -30,7 +31,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
       onClick={onRefresh}
       disabled={loading}
       className="p-2 bg-black bg-opacity-20 hover:bg-opacity-30 text-white rounded-full backdrop-blur-subtle transition-all duration-200 disabled:opacity-50"
-      title="Refresh photo"
+      title={t('refreshPhoto')}
     >
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -55,7 +56,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
       {/* Favorite button */}
       <button
         onClick={onToggleFavorite}
-        title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+        title={isFavorite ? t('removeFav') : t('addFav')}
         className="ml-2 p-1 rounded-full bg-black bg-opacity-20 hover:bg-opacity-40 transition-all"
       >
         {isFavorite ? (
@@ -73,7 +74,7 @@ const BottomBar: React.FC<BottomBarProps> = ({
       <button
         onClick={onToggleCarousel}
         className="ml-2 p-1 rounded-full bg-black bg-opacity-20 hover:bg-opacity-40 transition-all flex items-center"
-        title={carouselMode ? 'Disable carousel' : 'Enable carousel'}
+        title={carouselMode ? t('disableCarousel') : t('enableCarousel')}
       >
         <span
           className={`inline-block w-6 h-4 rounded-full transition-colors duration-200 ${carouselMode ? 'bg-blue-500' : 'bg-gray-400'}`}
@@ -83,14 +84,14 @@ const BottomBar: React.FC<BottomBarProps> = ({
             className={`absolute left-0 top-0 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${carouselMode ? 'translate-x-2' : ''}`}
           />
         </span>
-        <span className="ml-1 text-xs select-none">Heart</span>
+        <span className="ml-1 text-xs select-none">{t('carouselLabel')}</span>
       </button>
 
       {/* Debug toggle */}
       <button
         onClick={onToggleDebug}
         className="ml-2 p-1 rounded-full bg-black bg-opacity-20 hover:bg-opacity-40 transition-all"
-        title={debugMode ? 'Disable debug' : 'Enable debug'}
+        title={debugMode ? t('disableDebug') : t('enableDebug')}
       >
         <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
