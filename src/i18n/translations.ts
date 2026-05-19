@@ -4,6 +4,8 @@ const messages: Record<AppLocale, Record<string, string>> = {
   en: {
     // Background
     loading: 'Loading...',
+    // Page title
+    pageTitle: 'New Tab',
     // main.tsx / SettingsMenu
     settings: 'Settings',
     trialExhausted: 'Trial requests exhausted',
@@ -38,6 +40,7 @@ const messages: Record<AppLocale, Record<string, string>> = {
   },
   'zh-CN': {
     loading: '加载中…',
+    pageTitle: '新标签页',
     settings: '设置',
     trialExhausted: '试用请求已用尽',
     getOwnKeyPrefix: '获取免费 API Key：',
@@ -69,6 +72,7 @@ const messages: Record<AppLocale, Record<string, string>> = {
   },
   'zh-TW': {
     loading: '載入中…',
+    pageTitle: '新分頁',
     settings: '設定',
     trialExhausted: '試用請求已用盡',
     getOwnKeyPrefix: '取得免費 API Key：',
@@ -100,6 +104,7 @@ const messages: Record<AppLocale, Record<string, string>> = {
   },
   ja: {
     loading: '読み込み中…',
+    pageTitle: '新しいタブ',
     settings: '設定',
     trialExhausted: '試用リクエストが使い切り',
     getOwnKeyPrefix: '無料APIキーを取得：',

@@ -9,6 +9,8 @@ import DebugPanel from '../../components/DebugPanel';
 import { usePhotoService } from '../../hooks/usePhotoService';
 import { t } from '../../i18n/translations';
 
+document.title = t('pageTitle');
+
 const NewTab: React.FC = () => {
   const {
     photo,
