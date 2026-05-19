@@ -24,11 +24,17 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
   const [unsplashKey, setUnsplashKey] = useState('');
   const [saved, setSaved] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
+  const [keyEditing, setKeyEditing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     chrome.storage.sync.get(['unsplashKey'], (result) => {
-      if (result.unsplashKey) setUnsplashKey(result.unsplashKey);
+      if (result.unsplashKey) {
+        setUnsplashKey(result.unsplashKey);
+        setKeyEditing(false);
+      } else {
+        setKeyEditing(true);
+      }
     });
   }, []);
 
@@ -38,6 +44,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+    setKeyEditing(false);
   };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -107,28 +114,33 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
           <div className="flex gap-2">
             <input
               type="text"
-              className="flex-1 min-w-0 px-3 py-2 text-sm
-                bg-white/60 border border-gray-200/80 rounded-lg
-                text-gray-800 placeholder:text-gray-400
-                focus:outline-none focus:ring-2 focus:ring-violet-400/40 focus:border-violet-300
-                transition-all duration-150"
-              placeholder="Paste your Access Key"
+              className={`flex-1 min-w-0 px-3 py-2 text-sm rounded-lg transition-all duration-150
+                ${keyEditing
+                  ? 'bg-white/60 border border-gray-200/80 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400/40 focus:border-violet-300'
+                  : 'bg-gray-100/60 border border-transparent text-gray-500 cursor-default'
+                }`}
+              placeholder={keyEditing ? 'Paste your Access Key' : 'Double-click to edit'}
               value={unsplashKey}
+              readOnly={!keyEditing}
               onChange={e => setUnsplashKey(e.target.value)}
+              onDoubleClick={() => setKeyEditing(true)}
+              onBlur={() => { if (unsplashKey) setTimeout(() => setKeyEditing(false), 100); }}
             />
-            <button
-              onClick={handleKeySave}
-              className="px-3.5 py-2 text-sm font-medium whitespace-nowrap
-                bg-violet-600 text-white rounded-lg
-                hover:bg-violet-700 active:bg-violet-800
-                transition-colors duration-150 cursor-pointer"
-            >
-              {saved ? (
-                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <path d="M3 8.5l3.5 3.5L13 4"/>
-                </svg>
-              ) : 'Save'}
-            </button>
+            {keyEditing && (
+              <button
+                onClick={handleKeySave}
+                className="px-3.5 py-2 text-sm font-medium whitespace-nowrap
+                  bg-violet-600 text-white rounded-lg
+                  hover:bg-violet-700 active:bg-violet-800
+                  transition-colors duration-150 cursor-pointer"
+              >
+                {saved ? (
+                  <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M3 8.5l3.5 3.5L13 4"/>
+                  </svg>
+                ) : 'Save'}
+              </button>
+            )}
           </div>
         </div>
 

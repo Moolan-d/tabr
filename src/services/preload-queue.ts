@@ -10,7 +10,7 @@ interface QueuedPhoto {
 
 export class PreloadQueue {
   static readonly CAPACITY = 2;
-  static readonly IMAGE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+  static readonly IMAGE_TTL_MS = 60 * 60 * 1000; // 1 hour
   static readonly MAX_RETRY = 3;
 
   constructor(
