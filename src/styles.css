@@ -23,4 +23,10 @@ body {
 
 .text-shadow {
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+/* Visible keyboard focus across the UI (quality floor, never announce it) */
+:where(button, a, input, [role='switch']):focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.75);
+  outline-offset: 2px;
 } 

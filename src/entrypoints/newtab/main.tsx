@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import '../../styles.css';
-import Clock from '../../components/Clock';
 import SettingsMenu from '../../components/SettingsMenu';
+import FavoritesGallery from '../../components/FavoritesGallery';
 import Background from '../../components/Background';
 import BottomBar from '../../components/BottomBar';
-import DebugPanel from '../../components/DebugPanel';
 import { usePhotoService } from '../../hooks/usePhotoService';
 import { t } from '../../i18n/translations';
 
@@ -17,7 +16,7 @@ const NewTab: React.FC = () => {
     loading,
     isFavorite,
     carouselMode,
-    preloadQueue,
+    favorites,
     quotaExceeded,
     cleanMode,
     refresh,
@@ -25,23 +24,26 @@ const NewTab: React.FC = () => {
     toggleFavorite,
     toggleCarousel,
     toggleCleanMode,
+    setAsBackground,
+    removeFavorite,
+    restoreFavorite,
     exportFavorites,
     importFavorites,
   } = usePhotoService();
 
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [debugMode, setDebugMode] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden">
       <Background url={photo?.url} loading={loading} />
 
       <div className="relative z-10 w-full h-full flex flex-col">
-        {/* Settings button */}
-        <div className="absolute top-4 right-4">
+        {/* Settings button — cross-fades with the gallery close in this corner */}
+        <div className={`absolute top-4 right-4 transition-opacity duration-200 ${galleryOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <button
             onClick={() => setSettingsOpen(true)}
-            className={`p-2 rounded-full backdrop-blur-subtle transition-all duration-200 ${cleanMode ? 'bg-black/5 hover:bg-black/20 text-white/30 hover:text-white/80' : 'bg-black/20 hover:bg-black/30 text-white'}`}
+            className={`p-2 rounded-full backdrop-blur-subtle transition-all duration-200 ${cleanMode ? 'bg-transparent text-white/15 hover:bg-black/20 hover:text-white/90' : 'bg-black/20 hover:bg-black/30 text-white'}`}
             title={t('settings')}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -51,30 +53,17 @@ const NewTab: React.FC = () => {
           </button>
         </div>
 
-        {/* Clock */}
-        {!cleanMode && (
-          <div className="flex-1 flex items-center justify-center">
-            <Clock />
-          </div>
-        )}
-
         {/* Bottom bar */}
         {!cleanMode && (
           <BottomBar
             photo={photo}
             loading={loading}
             isFavorite={isFavorite}
-            carouselMode={carouselMode}
-            debugMode={debugMode}
             onRefresh={refresh}
             onToggleFavorite={toggleFavorite}
-            onToggleCarousel={toggleCarousel}
-            onToggleDebug={() => setDebugMode(prev => !prev)}
+            onOpenGallery={() => setGalleryOpen(true)}
           />
         )}
-
-        {/* Debug panel */}
-        {!cleanMode && debugMode && !carouselMode && <DebugPanel queue={preloadQueue} />}
       </div>
 
       <SettingsMenu
@@ -86,6 +75,18 @@ const NewTab: React.FC = () => {
         quotaExceeded={quotaExceeded}
         cleanMode={cleanMode}
         onToggleCleanMode={toggleCleanMode}
+        carouselMode={carouselMode}
+        onToggleCarousel={toggleCarousel}
+      />
+
+      <FavoritesGallery
+        isOpen={galleryOpen}
+        favorites={favorites}
+        currentUrl={photo?.url}
+        onClose={() => setGalleryOpen(false)}
+        onSetBackground={setAsBackground}
+        onRemove={removeFavorite}
+        onRestore={restoreFavorite}
       />
     </div>
   );

@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { FavoritePhoto } from '../providers/types';
 import { getPhotoService, PhotoServiceState } from '../services/photo-service';
 
 export function usePhotoService(): PhotoServiceState & {
@@ -7,6 +8,9 @@ export function usePhotoService(): PhotoServiceState & {
   toggleFavorite: () => Promise<void>;
   toggleCarousel: () => Promise<void>;
   toggleCleanMode: () => Promise<void>;
+  setAsBackground: (fav: FavoritePhoto) => Promise<void>;
+  removeFavorite: (url: string) => Promise<{ item: FavoritePhoto; index: number } | null>;
+  restoreFavorite: (item: FavoritePhoto, index: number) => Promise<void>;
   exportFavorites: () => void;
   importFavorites: (file: File) => Promise<{ imported: number; error?: string }>;
 } {
@@ -25,6 +29,9 @@ export function usePhotoService(): PhotoServiceState & {
     toggleFavorite: service.toggleFavorite,
     toggleCarousel: service.toggleCarousel,
     toggleCleanMode: service.toggleCleanMode,
+    setAsBackground: service.setAsBackground,
+    removeFavorite: service.removeFavorite,
+    restoreFavorite: service.restoreFavorite,
     exportFavorites: service.exportFavorites,
     importFavorites: service.importFavorites,
   };

@@ -56,6 +56,27 @@ export class FavoritesService {
     await this.cache.setRaw(FAVORITES_KEY, list.filter(item => item.url !== url));
   }
 
+  /** Remove a favorite and report where it was, so it can be restored in place. */
+  async removeWithIndex(url: string): Promise<{ item: FavoritePhoto; index: number } | null> {
+    const list = await this.getAll();
+    const index = list.findIndex(item => item.url === url);
+    if (index === -1) return null;
+
+    const [item] = list.splice(index, 1);
+    await this.cache.setRaw(FAVORITES_KEY, list);
+    return { item, index };
+  }
+
+  /** Re-insert a favorite at its original position (no-op if already present). */
+  async insertAt(photo: FavoritePhoto, index: number): Promise<void> {
+    const list = await this.getAll();
+    if (list.some(item => item.url === photo.url)) return;
+
+    const at = Math.max(0, Math.min(index, list.length));
+    list.splice(at, 0, photo);
+    await this.cache.setRaw(FAVORITES_KEY, list);
+  }
+
   async isFavorite(url: string): Promise<boolean> {
     const list = await this.getAll();
     return list.some(item => item.url === url);
@@ -99,11 +120,14 @@ export class FavoritesService {
       const valid: FavoritePhoto[] = [];
       for (const item of data) {
         if (typeof item?.url === 'string' && typeof item?.source === 'string') {
-          valid.push({
+          const fav: FavoritePhoto = {
             url: item.url,
             photoName: typeof item.photoName === 'string' ? item.photoName : '',
             source: item.source,
-          });
+          };
+          if (typeof item.photographerLink === 'string') fav.photographerLink = item.photographerLink;
+          if (typeof item.originalLink === 'string') fav.originalLink = item.originalLink;
+          valid.push(fav);
         }
       }
 

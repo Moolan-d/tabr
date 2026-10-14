@@ -1,15 +1,21 @@
 import { Photo, FavoritePhoto } from '../providers/types';
 import { sourceRegistry } from '../providers/registry';
+import { t } from '../i18n/translations';
 import { CacheLayer } from './cache';
 import { FavoritesService } from './favorites';
 import { PreloadQueue } from './preload-queue';
 
 const DISPLAY_CACHE_KEY = 'tabr_display_cache';
-const CAROUSEL_CACHE_KEY = 'tabr_carousel_cache';
 const CAROUSEL_MODE_KEY = 'tabr_carousel_mode';
+const CAROUSEL_CURSOR_KEY = 'tabr_carousel_cursor';
 const CLEAN_MODE_KEY = 'tabr_clean_mode';
 const DISPLAY_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
-const CAROUSEL_INTERVAL = 2 * 60 * 1000; // 2 minutes
+const CAROUSEL_THROTTLE_MS = 30 * 1000; // reuse the same favorite if opened again within 30s
+
+interface CarouselCursor {
+  url: string;
+  at: number;
+}
 
 export interface PhotoServiceState {
   photo: Photo | null;
@@ -17,7 +23,7 @@ export interface PhotoServiceState {
   errorType?: 'no-key' | 'api-error' | 'quota-exceeded';
   isFavorite: boolean;
   carouselMode: boolean;
-  preloadQueue: Photo[];
+  favorites: FavoritePhoto[];
   quotaExceeded: boolean;
   cleanMode: boolean;
 }
@@ -30,13 +36,12 @@ export class PhotoService {
     loading: false,
     isFavorite: false,
     carouselMode: false,
-    preloadQueue: [],
+    favorites: [],
     quotaExceeded: false,
     cleanMode: false,
   };
 
   private listeners = new Set<Listener>();
-  private carouselTimer: ReturnType<typeof setInterval> | null = null;
   private initialized = false;
 
   private cache: CacheLayer;
@@ -69,14 +74,15 @@ export class PhotoService {
 
   refresh = async (): Promise<void> => {
     if (this.state.carouselMode) {
-      await this.loadCarouselMode();
+      // Manual refresh always advances, bypassing the 30s throttle
+      await this.loadCarouselMode(true);
     } else {
       // Manual refresh: consume next from queue immediately
       const next = await this.queue.consume();
       if (next) {
         await this.setPhoto(next);
         // Background refill
-        this.queue.refill(next.url).then(() => this.updateQueueDisplay());
+        this.queue.refill(next.url);
       } else {
         // Queue empty, fetch fresh
         this.setState({ loading: true });
@@ -85,7 +91,7 @@ export class PhotoService {
         await this.setPhoto(photo);
         this.setState({ loading: false });
         // Rebuild queue
-        this.queue.refill(photo.url).then(() => this.updateQueueDisplay());
+        this.queue.refill(photo.url);
       }
     }
   };
@@ -101,10 +107,48 @@ export class PhotoService {
       await this.favorites.add({
         url: photo.url,
         photoName: photo.photographerName,
+        photographerLink: photo.photographerLink,
+        originalLink: photo.originalLink,
         source: photo.source,
       });
       this.setState({ isFavorite: true });
     }
+    await this.updateFavorites();
+  };
+
+  /** Remove a favorite (from the gallery) and report it for undo. */
+  removeFavorite = async (
+    url: string,
+  ): Promise<{ item: FavoritePhoto; index: number } | null> => {
+    const removed = await this.favorites.removeWithIndex(url);
+    if (!removed) return null;
+
+    await this.updateFavorites();
+    // The photo being displayed is unaffected; keep `isFavorite` in sync if needed.
+    if (this.state.photo?.url === url) {
+      this.setState({ isFavorite: false });
+    }
+    return removed;
+  };
+
+  /** Undo a gallery deletion, restoring the favorite at its original position. */
+  restoreFavorite = async (item: FavoritePhoto, index: number): Promise<void> => {
+    await this.favorites.insertAt(item, index);
+    await this.updateFavorites();
+    if (this.state.photo?.url === item.url) {
+      this.setState({ isFavorite: true });
+    }
+  };
+
+  /** Promote an existing favorite to the current background without leaving carousel mode. */
+  setAsBackground = async (fav: FavoritePhoto): Promise<void> => {
+    await this.setPhoto({
+      url: fav.url,
+      photographerName: fav.photoName,
+      photographerLink: fav.photographerLink ?? '',
+      originalLink: fav.originalLink ?? '',
+      source: fav.source,
+    });
   };
 
   toggleCarousel = async (): Promise<void> => {
@@ -113,7 +157,7 @@ export class PhotoService {
     if (newMode) {
       const favorites = await this.favorites.getAll();
       if (favorites.length === 0) {
-        alert('您还没有收藏任何图片，无法开启心动模式');
+        alert(t('carouselNeedsFavorites'));
         return;
       }
     }
@@ -122,10 +166,8 @@ export class PhotoService {
     this.setState({ carouselMode: newMode });
 
     if (newMode) {
-      await this.loadCarouselMode();
-      this.startCarouselTimer();
+      await this.loadCarouselMode(true);
     } else {
-      this.stopCarouselTimer();
       await this.loadNormalMode();
     }
   };
@@ -141,12 +183,16 @@ export class PhotoService {
   };
 
   importFavorites = async (file: File): Promise<{ imported: number; error?: string }> => {
-    return this.favorites.importJson(file);
+    const result = await this.favorites.importJson(file);
+    await this.updateFavorites();
+    return result;
   };
 
   private async initialize(): Promise<void> {
     if (this.initialized) return;
     this.initialized = true;
+
+    await this.updateFavorites();
 
     const cleanMode = await this.cache.getRaw<boolean>(CLEAN_MODE_KEY) ?? false;
     this.setState({ cleanMode });
@@ -156,7 +202,6 @@ export class PhotoService {
 
     if (carouselMode) {
       await this.loadCarouselMode();
-      this.startCarouselTimer();
     } else {
       await this.loadNormalMode();
     }
@@ -167,7 +212,6 @@ export class PhotoService {
     const cached = await this.cache.get<Photo>(DISPLAY_CACHE_KEY, DISPLAY_CACHE_TTL);
     if (cached) {
       await this.setPhoto(cached);
-      await this.updateQueueDisplay();
       return;
     }
 
@@ -175,9 +219,8 @@ export class PhotoService {
     const next = await this.queue.consume();
     if (next) {
       await this.setPhoto(next);
-      await this.updateQueueDisplay();
       // Background refill
-      this.queue.refill(next.url).then(() => this.updateQueueDisplay());
+      this.queue.refill(next.url);
       return;
     }
 
@@ -185,27 +228,34 @@ export class PhotoService {
     await this.initializeQueue();
   }
 
-  private async loadCarouselMode(): Promise<void> {
-    // 1. Check carousel cache
-    const cached = await this.cache.get<FavoritePhoto>(CAROUSEL_CACHE_KEY, DISPLAY_CACHE_TTL);
-    if (cached) {
-      this.setPhotoFromFavorite(cached);
+  private async loadCarouselMode(force = false): Promise<void> {
+    const favorites = await this.favorites.getAll();
+    if (favorites.length === 0) {
+      // No favorites, fall back to normal mode
+      this.setState({ carouselMode: false });
+      await this.cache.setRaw(CAROUSEL_MODE_KEY, false);
+      await this.loadNormalMode();
       return;
     }
 
-    // 2. Random from favorites (exclude last shown)
-    const lastUrl = this.state.photo?.url;
-    const photo = await this.favorites.getRandom(lastUrl);
-    if (photo) {
-      this.setPhotoFromFavorite(photo);
-      await this.cache.set(CAROUSEL_CACHE_KEY, photo);
-    } else {
-      // No favorites, fall back to normal
-      this.setState({ carouselMode: false });
-      await this.cache.setRaw(CAROUSEL_MODE_KEY, false);
-      this.stopCarouselTimer();
-      await this.loadNormalMode();
+    // Carousel follows the gallery's visible order (newest first)
+    const ordered = [...favorites].reverse();
+    const cursor = await this.cache.getRaw<CarouselCursor>(CAROUSEL_CURSOR_KEY);
+    const now = Date.now();
+
+    // Opened again shortly after the last one — keep showing the same favorite
+    if (!force && cursor && now - cursor.at < CAROUSEL_THROTTLE_MS) {
+      const current = ordered.find(f => f.url === cursor.url);
+      if (current) {
+        this.setPhotoFromFavorite(current);
+        return;
+      }
     }
+
+    const currentIndex = cursor ? ordered.findIndex(f => f.url === cursor.url) : -1;
+    const next = ordered[(currentIndex + 1) % ordered.length];
+    await this.cache.setRaw(CAROUSEL_CURSOR_KEY, { url: next.url, at: now });
+    this.setPhotoFromFavorite(next);
   }
 
   private async initializeQueue(): Promise<void> {
@@ -223,7 +273,6 @@ export class PhotoService {
     const second = await secondPromise;
     if (second.url !== first.url) {
       await this.queue.refill(first.url); // puts second into queue
-      await this.updateQueueDisplay();
     }
   }
 
@@ -239,8 +288,8 @@ export class PhotoService {
     const photo: Photo = {
       url: fav.url,
       photographerName: fav.photoName,
-      photographerLink: '',
-      originalLink: '',
+      photographerLink: fav.photographerLink ?? '',
+      originalLink: fav.originalLink ?? '',
       source: fav.source,
     };
     this.favorites.isFavorite(fav.url).then(isFavorite => {
@@ -248,24 +297,9 @@ export class PhotoService {
     });
   }
 
-  private async updateQueueDisplay(): Promise<void> {
-    const queue = await this.queue.getAll();
-    this.setState({ preloadQueue: queue });
-  }
-
-  private startCarouselTimer(): void {
-    this.stopCarouselTimer();
-    this.carouselTimer = setInterval(async () => {
-      await this.cache.remove(CAROUSEL_CACHE_KEY);
-      await this.loadCarouselMode();
-    }, CAROUSEL_INTERVAL);
-  }
-
-  private stopCarouselTimer(): void {
-    if (this.carouselTimer) {
-      clearInterval(this.carouselTimer);
-      this.carouselTimer = null;
-    }
+  private async updateFavorites(): Promise<void> {
+    const favorites = await this.favorites.getAll();
+    this.setState({ favorites });
   }
 
   private setState(partial: Partial<PhotoServiceState>): void {

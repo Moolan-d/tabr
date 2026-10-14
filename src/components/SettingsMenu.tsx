@@ -10,7 +10,49 @@ interface SettingsMenuProps {
   quotaExceeded?: boolean;
   cleanMode?: boolean;
   onToggleCleanMode?: () => void;
+  carouselMode?: boolean;
+  onToggleCarousel?: () => void;
 }
+
+/**
+ * Monochrome switch. Reads like the app mark: a solid dark shape on white when
+ * on, a hollow trace when off — no brand colour, the wallpaper carries the colour.
+ */
+const Switch: React.FC<{ on: boolean; label: string; onToggle: () => void }> = ({
+  on,
+  label,
+  onToggle,
+}) => (
+  <button
+    type="button"
+    onClick={onToggle}
+    role="switch"
+    aria-checked={on}
+    aria-label={label}
+    className={`relative inline-flex h-[18px] w-[30px] shrink-0 items-center rounded-full
+      transition-colors duration-200 cursor-pointer ${on ? 'bg-white/90' : 'bg-white/20'}`}
+  >
+    <span
+      className={`inline-block h-[13px] w-[13px] rounded-full transition-transform duration-200
+        ${on ? 'translate-x-[15px] bg-neutral-900' : 'translate-x-[2.5px] bg-white'}`}
+    />
+  </button>
+);
+
+const ToggleRow: React.FC<{
+  label: string;
+  description: string;
+  on: boolean;
+  onToggle: () => void;
+}> = ({ label, description, on, onToggle }) => (
+  <div className="flex items-center justify-between gap-4 px-3.5 py-3 rounded-2xl hover:bg-white/[0.04] transition-colors duration-150">
+    <div className="min-w-0">
+      <p className="text-[13px] font-medium text-white/90 leading-tight">{label}</p>
+      <p className="text-[11.5px] text-white/45 mt-1 leading-snug">{description}</p>
+    </div>
+    <Switch on={on} label={label} onToggle={onToggle} />
+  </div>
+);
 
 const SettingsMenu: React.FC<SettingsMenuProps> = ({
   isOpen,
@@ -21,17 +63,18 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
   quotaExceeded,
   cleanMode,
   onToggleCleanMode,
+  carouselMode,
+  onToggleCarousel,
 }) => {
   const [unsplashKey, setUnsplashKey] = useState('');
-  const [saved, setSaved] = useState(false);
+  const [savedKey, setSavedKey] = useState('');
+  const [justSaved, setJustSaved] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
-  const [keyEditing, setKeyEditing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Animation state
-  const [visible, setVisible] = useState(false);   // DOM mounted?
-  const [entering, setEntering] = useState(false);  // CSS transition class
-  const backdropRef = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  const [entering, setEntering] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -42,28 +85,33 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
     }
   }, [isOpen]);
 
-  const handleTransitionEnd = () => {
-    if (!entering) setVisible(false);
-  };
-
   useEffect(() => {
     chrome.storage.sync.get(['unsplashKey'], (result) => {
-      if (result.unsplashKey) {
-        setUnsplashKey(result.unsplashKey);
-        setKeyEditing(false);
-      } else {
-        setKeyEditing(true);
-      }
+      const key = result.unsplashKey ?? '';
+      setUnsplashKey(key);
+      setSavedKey(key);
     });
   }, []);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
+  const dirty = unsplashKey.trim() !== savedKey.trim();
+
   const handleKeySave = () => {
-    chrome.storage.sync.set({ unsplashKey }, () => {
+    if (!dirty) return;
+    chrome.storage.sync.set({ unsplashKey: unsplashKey.trim() }, () => {
+      setSavedKey(unsplashKey.trim());
       onKeySaved();
     });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-    setKeyEditing(false);
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 1600);
   };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,149 +131,139 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — dims the photo without blurring it */}
       <div
-        ref={backdropRef}
-        className={`fixed inset-0 z-40 backdrop-blur-sm transition-opacity duration-300 ease-out
-          ${entering ? 'bg-black/30 opacity-100' : 'bg-black/0 opacity-0'}`}
+        className={`fixed inset-0 z-40 transition-opacity duration-200 ease-out
+          ${entering ? 'bg-black/20 opacity-100' : 'bg-black/0 opacity-0'}`}
         onClick={onClose}
       />
 
       {/* Panel */}
       <div
-        onTransitionEnd={handleTransitionEnd}
-        className={`fixed top-16 right-4 z-50 w-96
-          bg-white/80 backdrop-blur-xl
-          border border-white/40
-          rounded-2xl shadow-2xl shadow-black/10
-          overflow-hidden
-          transition-all duration-300 ease-out
-          ${entering
-            ? 'opacity-100 translate-y-0 scale-100'
-            : 'opacity-0 -translate-y-2 scale-95'
-          }`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('settings')}
+        onTransitionEnd={() => { if (!entering) setVisible(false); }}
+        className={`fixed top-16 right-4 z-50 w-[344px]
+          rounded-3xl overflow-hidden
+          bg-neutral-950/35 backdrop-blur-xl
+          shadow-[0_16px_50px_-20px_rgba(0,0,0,0.6)]
+          text-white
+          transition-all duration-200 ease-out
+          ${entering ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-1.5 scale-[0.98]'}`}
       >
-
         {/* Header */}
-        <div className="px-5 pt-5 pb-3">
-          <h3 className="text-base font-semibold text-gray-900 tracking-tight">{t('settings')}</h3>
+        <div className="flex items-center justify-between pl-5 pr-3 pt-4 pb-1">
+          <h3 className="text-[15px] font-medium tracking-tight text-white/95">{t('settings')}</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t('close')}
+            className="p-2 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors duration-150 cursor-pointer"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
+          </button>
         </div>
 
-        {/* Quota exceeded warning */}
-        {quotaExceeded && (
-          <div className="mx-5 mb-3 p-3 rounded-xl bg-amber-50 border border-amber-200/60">
-            <div className="flex items-start gap-2.5">
-              <svg className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
-              </svg>
-              <div>
-                <p className="text-xs font-medium text-amber-800">{t('trialExhausted')}</p>
-                <p className="text-xs text-amber-700/80 mt-0.5 leading-relaxed">
-                  {t('getOwnKeyPrefix')}{' '}
-                  <a
-                    href="https://unsplash.com/developers"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline underline-offset-2 hover:text-amber-900 transition-colors"
-                  >{t('unsplashDevelopers')}</a>
-                  {' '}{t('toContinue')}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Modes */}
+        <div className="px-1.5 py-1.5">
+          <ToggleRow
+            label={t('cleanMode')}
+            description={t('cleanModeDesc')}
+            on={!!cleanMode}
+            onToggle={() => onToggleCleanMode?.()}
+          />
+          <ToggleRow
+            label={t('carouselMode')}
+            description={t('carouselModeDesc')}
+            on={!!carouselMode}
+            onToggle={() => onToggleCarousel?.()}
+          />
+        </div>
 
-        {/* API Key section */}
-        <div className="px-5 pb-4">
-          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">
+        {/* Source */}
+        <div className="px-5 pt-3 pb-1">
+          <label htmlFor="unsplash-key" className="block text-[11.5px] text-white/45 mb-2">
             {t('unsplashApiKey')}
           </label>
           <div className="flex gap-2">
             <input
+              id="unsplash-key"
               type="text"
-              className={`flex-1 min-w-0 px-3 py-2 text-sm rounded-lg transition-all duration-150
-                ${keyEditing
-                  ? 'bg-white/60 border border-gray-200/80 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-400/40 focus:border-violet-300'
-                  : 'bg-gray-100/60 border border-transparent text-gray-500 cursor-default'
-                }`}
-              placeholder={keyEditing ? t('pasteKey') : t('dblClickEdit')}
+              spellCheck={false}
+              autoComplete="off"
+              className="flex-1 min-w-0 px-3 py-2 text-[13px] rounded-xl
+                bg-white/[0.08] text-white/90 placeholder:text-white/30
+                focus:outline-none focus:bg-white/[0.12] focus:ring-1 focus:ring-white/25
+                transition-colors duration-150"
+              placeholder={t('pasteKey')}
               value={unsplashKey}
-              readOnly={!keyEditing}
               onChange={e => setUnsplashKey(e.target.value)}
-              onDoubleClick={() => setKeyEditing(true)}
-              onBlur={() => { if (unsplashKey) setTimeout(() => setKeyEditing(false), 100); }}
+              onKeyDown={e => { if (e.key === 'Enter') handleKeySave(); }}
             />
-            {keyEditing && (
-              <button
-                onClick={handleKeySave}
-                className="px-3.5 py-2 text-sm font-medium whitespace-nowrap
-                  bg-violet-600 text-white rounded-lg
-                  hover:bg-violet-700 active:bg-violet-800
-                  transition-colors duration-150 cursor-pointer"
-              >
-                {saved ? (
-                  <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                    <path d="M3 8.5l3.5 3.5L13 4"/>
-                  </svg>
-                ) : t('save')}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleKeySave}
+              disabled={!dirty}
+              className={`px-3.5 py-2 rounded-xl text-[13px] font-medium whitespace-nowrap
+                transition-colors duration-150 cursor-pointer
+                ${dirty
+                  ? 'bg-white text-neutral-900 hover:bg-white/90'
+                  : 'bg-white/[0.06] text-white/35 cursor-default'}`}
+            >
+              {justSaved ? (
+                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 8.5l3.5 3.5L13 4" />
+                </svg>
+              ) : (
+                t('save')
+              )}
+            </button>
           </div>
+
+          {quotaExceeded && (
+            <p className="flex items-start gap-2 mt-2.5 text-[11.5px] text-amber-200/80 leading-snug">
+              <span className="mt-[5px] w-1.5 h-1.5 rounded-full bg-amber-300/80 shrink-0" />
+              <span>
+                {t('trialExhausted')}. {t('getOwnKeyPrefix')}{' '}
+                <a
+                  href="https://unsplash.com/developers"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2 hover:text-amber-100 transition-colors"
+                >
+                  {t('unsplashDevelopers')}
+                </a>{' '}
+                {t('toContinue')}
+              </span>
+            </p>
+          )}
         </div>
 
-        {/* Divider */}
-        <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent mx-5" />
-
-        {/* Clean Mode */}
-        <div className="px-5 py-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-              {t('cleanMode')}
-            </p>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {t('cleanModeDesc')}
-            </p>
-          </div>
-          <button
-            onClick={onToggleCleanMode}
-            className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors duration-200 cursor-pointer ${cleanMode ? "bg-violet-600" : "bg-gray-300"}`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 mt-0.5 ${cleanMode ? "translate-x-4 ml-0.5" : "translate-x-0.5"}`}
-            />
-          </button>
-        </div>
-
-        {/* Divider */}
-        <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent mx-5" />
-
-        {/* Favorites backup */}
-        <div className="px-5 py-4">
-          <p className="text-xs font-medium text-gray-500 mb-2.5 uppercase tracking-wider">
-            {t('favoritesBackup')}
-          </p>
+        {/* Favorites */}
+        <div className="px-5 pt-4 pb-5">
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={onExport}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm
-                bg-white/60 border border-gray-200/80 rounded-lg text-gray-700
-                hover:bg-white hover:border-gray-300
-                transition-all duration-150 cursor-pointer"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[12.5px]
+                bg-white/[0.08] text-white/85 hover:bg-white/[0.14] transition-colors duration-150 cursor-pointer"
             >
-              <svg className="w-3.5 h-3.5 text-gray-500" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8 2v8m0 0l-2.5-2.5M8 10l2.5-2.5M3 12.5v1a1.5 1.5 0 001.5 1.5h7a1.5 1.5 0 001.5-1.5v-1"/>
+              <svg className="w-3.5 h-3.5 text-white/50" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 2v8m0 0l-2.5-2.5M8 10l2.5-2.5M3 12.5v1a1.5 1.5 0 001.5 1.5h7a1.5 1.5 0 001.5-1.5v-1" />
               </svg>
               {t('exportFavorites')}
             </button>
             <button
+              type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm
-                bg-white/60 border border-gray-200/80 rounded-lg text-gray-700
-                hover:bg-white hover:border-gray-300
-                transition-all duration-150 cursor-pointer"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[12.5px]
+                bg-white/[0.08] text-white/85 hover:bg-white/[0.14] transition-colors duration-150 cursor-pointer"
             >
-              <svg className="w-3.5 h-3.5 text-gray-500" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M8 14V6m0 0L5.5 8.5M8 6l2.5 2.5M3 3.5v-1A1.5 1.5 0 014.5 1h7A1.5 1.5 0 0113 2.5v1"/>
+              <svg className="w-3.5 h-3.5 text-white/50" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 14V6m0 0L5.5 8.5M8 6l2.5 2.5M3 3.5v-1A1.5 1.5 0 014.5 1h7A1.5 1.5 0 0113 2.5v1" />
               </svg>
               {t('importFavorites')}
             </button>
@@ -239,21 +277,8 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({
           </div>
 
           {importResult && (
-            <p className="mt-2.5 text-xs text-center text-gray-600 bg-gray-100/60 rounded-lg py-1.5">
-              {importResult}
-            </p>
+            <p className="mt-2.5 text-[11.5px] text-white/60">{importResult}</p>
           )}
-        </div>
-
-        {/* Close */}
-        <div className="px-5 pb-4">
-          <button
-            onClick={onClose}
-            className="w-full py-2 text-sm text-gray-400 hover:text-gray-600
-              transition-colors duration-150 cursor-pointer"
-          >
-            {t('close')}
-          </button>
         </div>
       </div>
     </>
