@@ -1,4 +1,5 @@
 import { Photo, PhotoSource } from './types';
+import { backgroundWidth, sizedImageUrl } from '../lib/image-url';
 
 const DEFAULT_ACCESS_KEY = 'BoJHVX6gSqa6Hs_yJmAqZBMAclCMPcf_tXmCrujEVgg';
 const QUOTA_KEY = 'tabr_meta_v2';
@@ -6,7 +7,10 @@ const QUOTA_LIMIT = 10;
 const QUOTA_SALT = (c: number) => c * 7 + 3;
 
 const FALLBACK_PHOTO: Photo = {
-  url: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80',
+  url: sizedImageUrl(
+    'https://images.unsplash.com/photo-1506905925346-21bda4d32df4',
+    backgroundWidth(),
+  ),
   photographerName: 'Fallback',
   photographerLink: 'https://unsplash.com',
   originalLink: 'https://unsplash.com',
@@ -48,7 +52,7 @@ export class UnsplashSource implements PhotoSource {
       }
 
       return {
-        url: photo.urls.full,
+        url: sizedImageUrl(photo.urls.raw ?? photo.urls.full, backgroundWidth(), 85),
         photographerName: photo.user.name,
         photographerLink: photo.user.links.html,
         originalLink: photo.links.html,

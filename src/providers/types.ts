@@ -10,6 +10,9 @@ export interface FavoritePhoto {
   url: string;
   photoName: string;
   source: string;
+  /** Optional: only present for favorites saved after v1.3 (older entries predate these fields). */
+  photographerLink?: string;
+  originalLink?: string;
 }
 
 export interface PhotoSource {

@@ -4,15 +4,19 @@ import { CacheLayer } from './cache';
 const FAVORITES_KEY = 'tabr_favorites';
 
 function isOldFormat(item: any): boolean {
-  return 'savedAt' in item || 'photographerLink' in item || 'originalLink' in item;
+  // Legacy entries carried a `savedAt` timestamp; current ones don't.
+  return 'savedAt' in item;
 }
 
 function migrateOne(item: any): FavoritePhoto {
-  return {
+  const fav: FavoritePhoto = {
     url: item.url,
     photoName: item.photoName ?? '',
     source: item.source ?? 'unknown',
   };
+  if (typeof item.photographerLink === 'string') fav.photographerLink = item.photographerLink;
+  if (typeof item.originalLink === 'string') fav.originalLink = item.originalLink;
+  return fav;
 }
 
 function mergeByUrl(local: FavoritePhoto[], incoming: FavoritePhoto[]): FavoritePhoto[] {
