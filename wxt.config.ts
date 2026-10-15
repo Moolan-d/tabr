@@ -10,11 +10,10 @@ export default defineConfig({
     name: 'Tabr - Beautiful New Tab',
     version: extensionVersion,
     version_name: extensionVersion,
-    description: 'Replace your new tab with stunning high-resolution photos, featuring image sources from Unsplash and Pixabay.',
+    description: 'High-resolution Unsplash photos on every new tab, with a favorites gallery, carousel, and clean mode.',
     permissions: ['storage'],
     host_permissions: [
       'https://api.unsplash.com/*',
-      'https://pixabay.com/*',
     ],
     icons: {
       16: 'icon-16.png',

@@ -1,5 +1,5 @@
 /**
- * Helpers for working with imgix-style image URLs (Unsplash, Pixabay, ...).
+ * Helpers for working with imgix-style image URLs (e.g. Unsplash).
  *
  * Unsplash serves photos through imgix, so `w`, `q` and `auto` query params
  * let us request a right-sized, modern-format variant of the same photo instead
