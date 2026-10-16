@@ -76,7 +76,7 @@ const messages: Record<AppLocale, Record<string, string>> = {
     removeFav: '取消收藏',
     addFav: '收藏',
     // Favorites gallery
-    gallery: '收藏',
+    gallery: '收藏夹',
     favoritesCount: '已收藏 {n} 张',
     favoritesEmpty: '还没有收藏',
     favoritesEmptyHint: '在新标签页点击爱心即可收藏。',
@@ -116,7 +116,7 @@ const messages: Record<AppLocale, Record<string, string>> = {
     removeFav: '取消收藏',
     addFav: '加入收藏',
     // Favorites gallery
-    gallery: '收藏',
+    gallery: '收藏夾',
     favoritesCount: '已收藏 {n} 張',
     favoritesEmpty: '還沒有收藏',
     favoritesEmptyHint: '在新分頁點擊愛心即可收藏。',

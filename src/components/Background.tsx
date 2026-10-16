@@ -1,5 +1,6 @@
 import React from 'react';
 import { t } from '../i18n/translations';
+import { sizedImageUrl, backgroundWidth } from '../lib/image-url';
 
 interface BackgroundProps {
   url?: string;
@@ -12,7 +13,7 @@ const Background: React.FC<BackgroundProps> = ({ url, loading }) => (
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-500"
         style={{
-          backgroundImage: `url(${url})`,
+          backgroundImage: `url(${sizedImageUrl(url, backgroundWidth(), 85)})`,
           opacity: loading ? 0.7 : 1,
         }}
       />

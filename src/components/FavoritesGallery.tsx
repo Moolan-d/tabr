@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FavoritePhoto } from '../providers/types';
 import { t } from '../i18n/translations';
-import { sizedImageUrl, THUMBNAIL_WIDTH } from '../lib/image-url';
+import { sizedImageUrl, previewWidth, THUMBNAIL_WIDTH } from '../lib/image-url';
 
 interface FavoritesGalleryProps {
   isOpen: boolean;
@@ -96,6 +96,17 @@ const FavoritesGallery: React.FC<FavoritesGalleryProps> = ({
     return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, lightbox, closeLightbox, onClose]);
 
+  // Warm the neighbours so prev/next swap instantly, even for favorites that
+  // were saved at full resolution.
+  useEffect(() => {
+    if (lightbox === null || ordered.length < 2) return;
+    const neighbours = [(lightbox + 1) % ordered.length, (lightbox - 1 + ordered.length) % ordered.length];
+    for (const i of neighbours) {
+      const img = new Image();
+      img.src = sizedImageUrl(ordered[i].fav.url, previewWidth(), 80);
+    }
+  }, [lightbox, favorites]);
+
   const handleDelete = async (fav: FavoritePhoto) => {
     const removed = await onRemove(fav.url);
     if (!removed) return;
@@ -182,7 +193,7 @@ const FavoritesGallery: React.FC<FavoritesGalleryProps> = ({
                     type="button"
                     onClick={() => setLightbox(i)}
                     aria-label={fav.photoName || t('unknownPhotographer')}
-                    className={`w-full h-full rounded-2xl overflow-hidden bg-white/[0.04] transition-all duration-150 cursor-pointer
+                    className={`block relative w-full h-full rounded-2xl overflow-hidden bg-white/[0.04] transition-all duration-150 cursor-pointer
                       ring-1 ${fav.url === currentUrl ? 'ring-white/70' : 'ring-white/[0.08] hover:ring-white/25'}`}
                   >
                     <img
@@ -280,7 +291,7 @@ const FavoritesGallery: React.FC<FavoritesGalleryProps> = ({
               <ChevronIcon dir="left" />
             </button>
             <img
-              src={current.fav.url}
+              src={sizedImageUrl(current.fav.url, previewWidth(), 80)}
               alt={current.fav.photoName || t('unknownPhotographer')}
               className="max-w-full max-h-full object-contain rounded-2xl shadow-[0_20px_60px_-20px_rgba(0,0,0,0.7)]"
             />

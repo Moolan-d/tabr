@@ -15,6 +15,21 @@ const MAX_BACKGROUND_WIDTH = 3840;
 /** Gallery grid thumbnails. */
 export const THUMBNAIL_WIDTH = 400;
 
+/** Lightbox preview: sharp full-screen, but small enough to swap instantly. */
+const MAX_PREVIEW_WIDTH = 2000;
+
+/**
+ * Width in device pixels for a full-screen preview. Capped lower than a
+ * background so switching photos in the lightbox stays fast, even for
+ * favorites saved before URLs were right-sized.
+ */
+export function previewWidth(): number {
+  if (typeof window === 'undefined') return 1600;
+  const dpr = window.devicePixelRatio || 1;
+  const width = Math.round(window.innerWidth * dpr);
+  return Math.min(MAX_PREVIEW_WIDTH, Math.max(1280, width));
+}
+
 /**
  * Return `url` with resize params applied. Existing `w`/`q` params are
  * overridden, so this is safe to call on an already-processed URL (e.g. to
