@@ -40,3 +40,6 @@ build/
 .wxt/
 .output/
 openspec/
+
+# wxt submit secrets
+.env.submit
