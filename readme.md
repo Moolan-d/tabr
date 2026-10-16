@@ -115,9 +115,10 @@ No changes needed in the service or UI layers.
 
 - **CI:** Every pull request runs typecheck and build checks
 - **Release:** Pushes to `main` trigger `semantic-release`, which analyzes commit messages and creates a new version automatically (`feat:` = minor, `fix:` = patch)
-- **Publish:** New releases are zipped via `wxt zip`, uploaded to GitHub Releases, and submitted to the Chrome Web Store
+- **Package:** New releases are built and zipped via `wxt zip`, then attached to the GitHub Release automatically
+- **Publish:** Submitting to the Chrome Web Store is **manual**. Run the Release workflow from the Actions tab (`workflow_dispatch`) with an existing tag, e.g. `v1.6.0`. It builds that tag and runs `wxt submit`.
 
-To release manually, use the `workflow_dispatch` trigger in GitHub Actions with an existing tag.
+Publishing is deliberately manual: the Chrome Web Store rejects a version that already exists, so it must not fire automatically after a manual upload.
 
 ## Tech Stack
 
